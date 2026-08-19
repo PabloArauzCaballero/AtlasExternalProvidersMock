@@ -1,0 +1,14 @@
+{
+  "name": "atlas-external-providers-mock-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor mock independiente que emula los proveedores externos de ATLAS (SEGIP, INFOCENTER, QR, banca, telco, Facebook, WhatsApp, digital trust). Sin dependencias de AtlasBackend ni de AtlasAdminPortal: pensado para migrar tal cual a un repositorio/servicio externo en la siguiente fase.",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs"
+  }
+}
