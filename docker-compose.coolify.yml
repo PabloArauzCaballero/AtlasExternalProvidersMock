@@ -1,0 +1,71 @@
+# Emulador de proveedores externos, gestionado por COOLIFY.
+#
+# La aplicación en Coolify se llama `atlas-provider-mockup-server`
+# (uuid `km1gsygciydseniief8nkgen`), sigue la rama `dev` y tiene el build pack `dockercompose`
+# apuntando a `/docker-compose.coolify.yml` — este archivo. Sin él la aplicación existe pero no
+# puede desplegar nada, que es exactamente donde estaba hasta el 2026-09-05.
+#
+# ## Este servicio NO se publica a internet, y es deliberado
+#
+# No lleva dominio. Quien lo consume es AtlasBackend desde dentro de la red compartida de Coolify,
+# por el alias `external-providers-mock`. Darle un FQDN sería exponer a cualquiera un servidor que
+# firma verificaciones de identidad y reportes crediticios con respuestas fabricadas: nada que
+# proteger, pero tampoco nada que anunciar.
+#
+# ## Lo que este archivo NO trae
+#
+# `env_file`: Coolify añade `env_file: - .env` a cada servicio por su cuenta, y las variables se
+# pegan en Environment Variables de la aplicación. Las tres que entiende el servidor están en
+# `.env.example`; ninguna es obligatoria.
+#
+# Tampoco `cache_from`. En este VPS no hay registro, así que un `cache_from: ['<imagen>:coolify']`
+# falla siempre con `pull access denied` y deja el build SIN caché — cuesta y no da nada.
+
+name: atlas-provider-mockup-server
+
+services:
+  mock:
+    image: atlas-provider-mockup-server:coolify
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    # Alias ESTABLE en la red compartida: es como lo encuentra AtlasBackend. El nombre del
+    # contenedor lleva una marca de tiempo y cambia en cada despliegue; este alias no.
+    #
+    # El nombre es específico a propósito. Un alias corto y genérico lo puede reclamar cualquier
+    # otro proyecto de esta máquina, y ya pasó con `redis`: el `redis` de la infraestructura de
+    # Coolify ganaba la resolución y el fallo no se parecía en nada a un alias duplicado.
+    networks:
+      default: {}
+      coolify:
+        aliases: ['external-providers-mock']
+    # `init: true` reparte SIGTERM al proceso de Node, sin depender de instalar un binario.
+    init: true
+    # SIN `ports:`. Coolify nombra cada contenedor con una marca de tiempo, así que en cada
+    # despliegue crea uno NUEVO en vez de reemplazar el anterior; mientras el viejo siga en pie
+    # sujeta el puerto del host y el nuevo muere con `address already in use`. `expose` publica el
+    # puerto sólo hacia las redes Docker, que es todo lo que este servicio necesita.
+    expose: ['4010']
+    stop_grace_period: 20s
+    # Ocho emuladores sin estado sobre `node:http`. 256 MB sobran, y el tope importa en una
+    # máquina donde los builds de los portales ya la hacen paginar.
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+# ---------------------------------------------------------------------------------------------
+# La red COMPARTIDA de Coolify. Es por donde AtlasBackend alcanza este servicio.
+#
+# **Hace falta activar «Connect To Predefined Network» en esta aplicación dentro de Coolify.**
+networks:
+  default: {}
+  coolify:
+    external: true
+    name: coolify

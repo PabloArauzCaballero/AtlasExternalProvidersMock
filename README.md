@@ -17,6 +17,27 @@ Por defecto escucha en `http://localhost:4010` — el mismo valor que
 `EXTERNAL_PROVIDERS_MOCK_BASE_URL` espera en `AtlasBackend/.env` cuando un proveedor está
 en modo `mock_server`.
 
+## Desplegado en el VPS
+
+La rama `dev` se despliega sola: cada push dispara `.github/workflows/deploy-dev.yml`, que entra
+por Tailscale, le pide a Coolify que despliegue la aplicación `atlas-provider-mockup-server` y
+**espera su veredicto** — si el build falla, el job termina en rojo. Es el mismo mecanismo de los
+seis repositorios de Atlas.
+
+Ahí NO se publica a internet: no lleva dominio. Quien lo consume es `AtlasBackend`, desde dentro
+de la red compartida de Coolify, por el alias `external-providers-mock`. La URL que va en
+`EXTERNAL_PROVIDERS_MOCK_BASE_URL` allá es, por tanto:
+
+```
+http://external-providers-mock:4010
+```
+
+Para mirarlo desde el propio VPS, sin exponerlo:
+
+```bash
+docker run --rm --network coolify curlimages/curl -s http://external-providers-mock:4010/mock/health
+```
+
 ## Health
 
 Global (todos los módulos):

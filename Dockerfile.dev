@@ -1,0 +1,43 @@
+# Imagen del emulador de proveedores externos de ATLAS.
+#
+# ## No hay `npm install`, y no es un olvido
+#
+# `package.json` no declara **ninguna** dependencia: el servidor es `node:http` y tres módulos
+# propios. Instalar nada sería inventar trabajo, y además esquiva de raíz la clase de fallo que
+# más veces ha tumbado los builds de este VPS: si el demonio de Docker se queda sin DNS, un
+# `npm ci` muere con un error que no menciona la red. Aquí no hay a quién llamar.
+#
+# ## `NODE_ENV` se fija aquí, no en el panel
+#
+# Coolify declara un `ARG NODE_ENV` en TODAS las etapas del Dockerfile y le pasa el valor de
+# Environment Variables. Un `ENV` explícito gana sobre el ARG del mismo nombre en cualquier orden,
+# así que la imagen queda inmune a lo que diga el panel. En este servicio no cambia el
+# comportamiento —no hay build ni dependencias de desarrollo— pero la regla es la misma en los
+# seis repos hermanos y romperla aquí sería una trampa para el siguiente que lo lea.
+FROM node:22-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+# `package.json` va aunque no traiga dependencias: es lo que declara `"type": "module"`, y sin él
+# Node trata los `.mjs` importados como CommonJS y el arranque muere en el primer `import`.
+COPY --chown=node:node package.json ./
+COPY --chown=node:node src ./src
+
+USER node
+
+# El puerto del contrato: es el que espera `EXTERNAL_PROVIDERS_MOCK_BASE_URL` en AtlasBackend
+# cuando un proveedor está en modo `mock_server`. Cambiarlo obliga a cambiarlo allí también.
+ENV MOCK_PROVIDERS_PORT=4010
+EXPOSE 4010
+
+# `/mock/health` es el health check global que documenta el propio repo, y responde 200 con el
+# escenario activo y el estado de los ocho módulos. `fetch` es nativo desde Node 18, así que no
+# hace falta `wget` ni `curl` en la imagen.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.MOCK_PROVIDERS_PORT||4010)+'/mock/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# Sin `ENTRYPOINT` con tini: lo pone el compose con `init: true`, que es el mismo programa —Docker
+# lo trae incorporado— y no depende de que `apt` pueda descargar nada. Sin un init como PID 1,
+# `SIGTERM` no llega a Node.
+CMD ["node", "src/server.mjs"]
