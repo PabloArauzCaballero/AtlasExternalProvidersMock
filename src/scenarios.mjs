@@ -40,10 +40,42 @@ export function transportFailureFor(scenario) {
   return null;
 }
 
-export function latencyMsFor(scenario, headerValue, defaultLatencyMs) {
+/**
+ * Cuánto tarda ESTE proveedor, no cuánto tarda "el emulador".
+ *
+ * Antes era un único valor parejo (300 ms) para los ocho, y eso hacía inútil cualquier tablero de
+ * latencias: un buró de crédito y un OAuth de Meta no tardan lo mismo ni de lejos. Ahora cada
+ * módulo declara su `latencyRangeMs` y aquí se sortea un valor dentro del rango.
+ *
+ * Precedencia, de más fuerte a más débil:
+ *   1. la cabecera `x-mock-latency-ms` — una prueba que necesita un número exacto lo fija;
+ *   2. `slow_response` — el triple del techo del proveedor, para provocar un p95 feo sin caerse;
+ *   3. el rango del proveedor;
+ *   4. el default global, para un módulo que aún no declaró rango.
+ */
+export function latencyMsFor(scenario, headerValue, defaultLatencyMs, provider) {
   if (typeof headerValue === "string" && headerValue.trim() !== "" && Number.isFinite(Number(headerValue))) {
     return Number(headerValue);
   }
-  if (scenario === "slow_response") return 3500;
-  return defaultLatencyMs;
+  const range = Array.isArray(provider?.latencyRangeMs) ? provider.latencyRangeMs : null;
+  if (scenario === "slow_response") return range ? range[1] * 3 : 3500;
+  if (!range) return defaultLatencyMs;
+  const [min, max] = range;
+  return Math.round(min + Math.random() * (max - min));
+}
+
+/**
+ * Fallo de fondo aleatorio, apagado por defecto (`MOCK_PROVIDERS_ERROR_RATE=0`).
+ *
+ * Existe para las DEMOS: un tablero de siete días con el 100 % de éxito y una línea plana no
+ * enseña nada de lo que el tablero sirve para ver. Con `0.05`, una de cada veinte llamadas cae con
+ * un fallo de transporte realista. Nunca se activa solo, y no toca los escenarios pedidos
+ * explícitamente por cabecera: si alguien pidió `happy_path`, es una prueba, no una demo.
+ */
+export function backgroundFailureFor(errorRate, scenarioWasExplicit) {
+  if (scenarioWasExplicit || !(errorRate > 0) || Math.random() >= errorRate) return null;
+  const roll = Math.random();
+  if (roll < 0.5) return transportFailureFor("provider_down");
+  if (roll < 0.8) return transportFailureFor("provider_internal_error");
+  return transportFailureFor("rate_limited");
 }

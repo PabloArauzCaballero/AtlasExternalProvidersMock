@@ -1,9 +1,10 @@
 import { createServer } from "node:http";
-import { SUPPORTED_SCENARIOS, transportFailureFor, latencyMsFor } from "./scenarios.mjs";
-import { providers, findProviderByMountPath, findProviderBySlug } from "./providers/index.mjs";
+import { SUPPORTED_SCENARIOS, transportFailureFor, backgroundFailureFor, latencyMsFor } from "./scenarios.mjs";
+import { providers, findProviderByMountPath, findProviderBySlug, operationFromPath, providerCatalog } from "./providers/index.mjs";
 
 const port = Number(process.env.MOCK_PROVIDERS_PORT ?? 4010);
 const defaultLatencyMs = Number(process.env.MOCK_PROVIDERS_DEFAULT_LATENCY_MS ?? 300);
+const backgroundErrorRate = Number(process.env.MOCK_PROVIDERS_ERROR_RATE ?? 0);
 let activeScenario = process.env.MOCK_PROVIDERS_SCENARIO ?? "happy_path";
 
 function readBody(req) {
@@ -28,11 +29,16 @@ function send(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
+/**
+ * Devuelve además si el escenario vino PEDIDO (cabecera o cuerpo) o si es sólo el activo del
+ * servidor. La diferencia importa para el fallo de fondo: una llamada que pidió un escenario es
+ * una prueba y no se le mete ruido encima.
+ */
 function scenarioFor(req, body) {
   const headerScenario = req.headers["x-mock-scenario"];
-  if (typeof headerScenario === "string" && headerScenario) return headerScenario;
-  if (typeof body.scenario === "string" && body.scenario) return body.scenario;
-  return activeScenario;
+  if (typeof headerScenario === "string" && headerScenario) return { scenario: headerScenario, explicit: true };
+  if (typeof body.scenario === "string" && body.scenario) return { scenario: body.scenario, explicit: true };
+  return { scenario: activeScenario, explicit: false };
 }
 
 function moduleHealth(provider) {
@@ -61,7 +67,20 @@ async function handle(req, res) {
     const slug = pathname.slice("/mock/health/".length);
     const provider = findProviderBySlug(slug);
     if (!provider) return send(res, 404, { ok: false, error: "UNKNOWN_MODULE", slug });
-    return send(res, 200, { ...moduleHealth(provider), activeScenario });
+    return send(res, 200, { ok: true, ...moduleHealth(provider), activeScenario });
+  }
+
+  // Catálogo: qué proveedores hay, qué operaciones exponen, cuánto tardan y qué escenarios
+  // entiende cada uno. Lo lee el tablero del portal.
+  if (pathname === "/mock/providers" && req.method === "GET") {
+    const catalog = providerCatalog();
+    return send(res, 200, {
+      activeScenario,
+      backgroundErrorRate,
+      count: catalog.length,
+      scenarios: SUPPORTED_SCENARIOS,
+      providers: catalog,
+    });
   }
 
   if (pathname === "/mock/scenarios" && req.method === "GET") {
@@ -74,7 +93,7 @@ async function handle(req, res) {
   }
 
   const body = await readBody(req);
-  const scenario = scenarioFor(req, body);
+  const { scenario, explicit } = scenarioFor(req, body);
 
   if (pathname === "/mock/scenarios/active" && req.method === "POST") {
     if (!SUPPORTED_SCENARIOS.includes(scenario)) {
@@ -87,7 +106,7 @@ async function handle(req, res) {
   const provider = findProviderByMountPath(pathname);
   if (!provider) return send(res, 404, { status: "NOT_FOUND", path: pathname });
 
-  const latencyMs = latencyMsFor(scenario, req.headers["x-mock-latency-ms"], defaultLatencyMs);
+  const latencyMs = latencyMsFor(scenario, req.headers["x-mock-latency-ms"], defaultLatencyMs, provider);
   if (scenario === "timeout") {
     await new Promise((resolve) => setTimeout(resolve, latencyMs + 9_000));
   } else {
@@ -99,10 +118,10 @@ async function handle(req, res) {
     return res.end("{ invalid-json");
   }
 
-  const transportFailure = transportFailureFor(scenario);
+  const transportFailure = transportFailureFor(scenario) ?? backgroundFailureFor(backgroundErrorRate, explicit);
   if (transportFailure) return send(res, transportFailure.statusCode, transportFailure.payload);
 
-  return send(res, 200, provider.respond(scenario, body.input ?? {}));
+  return send(res, 200, provider.respond(scenario, body.input ?? {}, operationFromPath(provider, pathname)));
 }
 
 createServer((req, res) => {
@@ -112,4 +131,5 @@ createServer((req, res) => {
 }).listen(port, () => {
   console.log(`[atlas-external-providers-mock-server] listening on http://localhost:${port}`);
   console.log(`  modules: ${providers.map((provider) => provider.slug).join(", ")}`);
+  if (backgroundErrorRate > 0) console.log(`  background error rate: ${backgroundErrorRate}`);
 });

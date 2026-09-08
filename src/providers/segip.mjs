@@ -3,6 +3,18 @@ export const slug = "segip";
 export const mountPath = "/mock/segip";
 export const operationPath = "/identity/verify";
 
+/** Metadatos del catálogo (`GET /mock/providers`). No cambian la respuesta; explican al operador. */
+export const domain = "Identidad (KYC)";
+export const description = "Registro estatal de identidad boliviano. Confirma que la cédula existe y que los datos coinciden.";
+/**
+ * Rango de latencia REALISTA del proveedor de verdad, no un número parejo para todos: un registro
+ * estatal contesta en algo más de un segundo, y el tablero de proveedores externos sólo dice algo
+ * útil si cada fila tarda lo que tardaría en producción.
+ */
+export const latencyRangeMs = [600, 1400];
+export const operations = [{ path: operationPath, method: "POST", summary: "Verificar identidad contra el registro estatal" }];
+export const handledScenarios = ["happy_path", "partial_match", "not_found", "data_not_available"];
+
 export function respond(scenario) {
   if (scenario === "partial_match") {
     return {
