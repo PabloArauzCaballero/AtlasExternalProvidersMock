@@ -1,0 +1,27 @@
+# Integración continua del emulador de proveedores (auditoría a producción, 2026-09-13).
+#
+# Hasta hoy sólo había despliegue: un cambio que rompiera el arranque o un health se descubría
+# cuando AtlasBackend empezaba a reportar proveedores caídos. Sin dependencias, así que sin install.
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Arranca y cada proveedor responde
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/server.mjs
+      - run: npm run smoke
