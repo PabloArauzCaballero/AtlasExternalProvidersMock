@@ -2,20 +2,25 @@
 #
 # Hasta hoy sólo había despliegue: un cambio que rompiera el arranque o un health se descubría
 # cuando AtlasBackend empezaba a reportar proveedores caídos. Sin dependencias, así que sin install.
+#
+# Desde el motor QA (2026-09-21) el humo ya no es lo único: la suite de contrato comprueba las
+# trampas que este emulador tenía y que hacían pasar pruebas que no debían pasar —ruta inexistente
+# con 200, método equivocado con 200, escenario desconocido cayendo al camino feliz—. Por eso corre
+# ANTES que el humo: si el contrato se rompió, el humo va a pasar igual y el diagnóstico sería peor.
 name: CI
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, test]
   push:
-    branches: [main, dev]
+    branches: [main, dev, test]
 
 permissions:
   contents: read
 
 jobs:
-  smoke:
-    name: Arranca y cada proveedor responde
+  test:
+    name: Contrato, aislamiento y configuración
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -24,4 +29,16 @@ jobs:
         with:
           node-version: 22
       - run: node --check src/server.mjs
+      - run: npm test
+
+  smoke:
+    name: Arranca y cada proveedor responde
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: npm run smoke

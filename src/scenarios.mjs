@@ -20,9 +20,17 @@ export const SUPPORTED_SCENARIOS = [
 ];
 
 /**
- * Escenarios de transporte: representan una falla del "proveedor" antes de que su
- * emulador de negocio (segip.mjs, qr.mjs, etc.) llegue a construir una respuesta —
- * por eso se resuelven en un solo lugar en vez de repetirse en cada módulo.
+ * Escenarios de transporte: representan una falla del "proveedor" antes de que su emulador de
+ * negocio (segip.mjs, qr.mjs, etc.) llegue a construir una respuesta — por eso se resuelven en un
+ * solo lugar en vez de repetirse en cada módulo.
+ *
+ * Semántica declarada, que es lo que un consumidor necesita para no confundir capas:
+ * - `provider_down` (503): el proveedor no está. NO es "el backend está caído".
+ * - `unauthorized` (401): las credenciales de Atlas CONTRA EL PROVEEDOR no sirven. No es la sesión
+ *   del cliente final caducada, y tratarlo como tal es cómo se deslogea a un usuario por un
+ *   problema de integración.
+ * - `rate_limited` (429): cuota del proveedor. Va con `Retry-After`, que el servidor añade.
+ * - `provider_internal_error` (500): el proveedor falló por su cuenta.
  */
 export function transportFailureFor(scenario) {
   if (scenario === "provider_down") {
@@ -32,7 +40,7 @@ export function transportFailureFor(scenario) {
     return { statusCode: 401, payload: { status: "UNAUTHORIZED", reasonCode: "MOCK_UNAUTHORIZED" } };
   }
   if (scenario === "rate_limited") {
-    return { statusCode: 429, payload: { status: "RATE_LIMITED", reasonCode: "MOCK_RATE_LIMITED" } };
+    return { statusCode: 429, payload: { status: "RATE_LIMITED", reasonCode: "MOCK_RATE_LIMITED", retryAfterSeconds: 2 } };
   }
   if (scenario === "provider_internal_error") {
     return { statusCode: 500, payload: { status: "PROVIDER_INTERNAL_ERROR", reasonCode: "MOCK_INTERNAL_ERROR" } };
@@ -44,21 +52,22 @@ export function transportFailureFor(scenario) {
  * Cuánto tarda ESTE proveedor, no cuánto tarda "el emulador".
  *
  * Antes era un único valor parejo (300 ms) para los ocho, y eso hacía inútil cualquier tablero de
- * latencias: un buró de crédito y un OAuth de Meta no tardan lo mismo ni de lejos. Ahora cada
- * módulo declara su `latencyRangeMs` y aquí se sortea un valor dentro del rango.
+ * latencias: un buró de crédito y un OAuth de Meta no tardan lo mismo ni de lejos. Cada módulo
+ * declara su `latencyRangeMs` y aquí se sortea un valor dentro del rango.
  *
- * Precedencia, de más fuerte a más débil:
- *   1. la cabecera `x-mock-latency-ms` — una prueba que necesita un número exacto lo fija;
- *   2. `slow_response` — el triple del techo del proveedor, para provocar un p95 feo sin caerse;
- *   3. el rango del proveedor;
- *   4. el default global, para un módulo que aún no declaró rango.
+ * La cabecera `x-mock-latency-ms` ya NO se resuelve aquí: se valida y se aplica en el servidor,
+ * porque una latencia pedida por cabecera necesita comprobarse contra el techo configurado y esa
+ * decisión es del borde, no del catálogo de escenarios.
+ *
+ * Es uniforme y aleatorio a propósito, y por eso el emulador NO promete latencias reproducibles al
+ * repetir una semilla: lo reproducible son los DATOS, no los tiempos de red. Para fijar un número
+ * exacto en una prueba de frontera está la cabecera.
  */
-export function latencyMsFor(scenario, headerValue, defaultLatencyMs, provider) {
-  if (typeof headerValue === "string" && headerValue.trim() !== "" && Number.isFinite(Number(headerValue))) {
-    return Number(headerValue);
-  }
+export function latencyMsFor(scenario, provider, defaultLatencyMs) {
   const range = Array.isArray(provider?.latencyRangeMs) ? provider.latencyRangeMs : null;
-  if (scenario === "slow_response") return range ? range[1] * 3 : 3500;
+  // `slow_response` apunta al triple del techo del proveedor: provoca un p95 feo sin caerse y sin
+  // cruzar necesariamente el deadline del consumidor, que es lo que separa `slow` de `timeout`.
+  if (scenario === "slow_response") return range ? range[1] * 3 : 3_500;
   if (!range) return defaultLatencyMs;
   const [min, max] = range;
   return Math.round(min + Math.random() * (max - min));
@@ -69,8 +78,9 @@ export function latencyMsFor(scenario, headerValue, defaultLatencyMs, provider) 
  *
  * Existe para las DEMOS: un tablero de siete días con el 100 % de éxito y una línea plana no
  * enseña nada de lo que el tablero sirve para ver. Con `0.05`, una de cada veinte llamadas cae con
- * un fallo de transporte realista. Nunca se activa solo, y no toca los escenarios pedidos
- * explícitamente por cabecera: si alguien pidió `happy_path`, es una prueba, no una demo.
+ * un fallo de transporte realista. Nunca se activa solo, y no toca las llamadas que pidieron un
+ * escenario explícito ni las que tienen una regla del plan de fallos: si alguien pidió algo
+ * concreto, es una prueba, no una demo, y meterle ruido encima la invalida.
  */
 export function backgroundFailureFor(errorRate, scenarioWasExplicit) {
   if (scenarioWasExplicit || !(errorRate > 0) || Math.random() >= errorRate) return null;

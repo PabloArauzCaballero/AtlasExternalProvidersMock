@@ -44,7 +44,26 @@ Para mirarlo desde el propio VPS, sin exponerlo:
 docker run --rm --network coolify curlimages/curl -s http://external-providers-mock:4010/mock/health
 ```
 
-## Health
+## Pruebas
+
+```bash
+npm test       # contrato, aislamiento entre corridas y configuración (node:test, sin dependencias)
+npm run smoke  # arranca el proceso de verdad y comprueba lo que el backend da por hecho
+```
+
+La suite existe desde el motor QA (21-sep-2026). Antes no había ninguna —y la documentación de
+`AtlasBackend` citaba un `test/contract.test.mjs` que nunca existió—. Cada bloque nombra el falso
+positivo que cierra: ruta inexistente que respondía 200, método equivocado que respondía 200,
+escenario desconocido que caía al camino feliz. Los tres hacían pasar pruebas que no debían pasar.
+
+## Health: vivo no es lo mismo que listo
+
+| Ruta | Qué afirma |
+| ---- | ---------- |
+| `GET /mock/live` | El proceso atiende. Nada más. |
+| `GET /mock/ready` | Además el catálogo está completo y coherente: ocho módulos, rutas bajo `/mock`, escenarios declarados. 503 con `problems[]` si no. |
+| `GET /mock/health` | Compatibilidad: la forma que consume hoy `AtlasBackend`. |
+| `GET /mock/health/<slug>` | Salud de un módulo. Un slug desconocido es 404 `UNKNOWN_MODULE`. |
 
 Global (todos los módulos):
 
@@ -89,10 +108,12 @@ el backend para funcionar cuando un proveedor está en modo `mock_server`.
 curl http://localhost:4010/mock/providers
 ```
 
-Devuelve, por proveedor: `code`, `slug`, `domain`, `description`, las `operations` con su path
-completo, el `latencyRangeMs` y los `handledScenarios` que ese módulo distingue de verdad. Lo
-consume el tablero de Proveedores externos del portal interno para explicar cada tarjeta y para
-ofrecer sólo los escenarios que ese proveedor entiende.
+Devuelve, por proveedor: `code`, `slug`, `domain`, `description`, `schemaVersion`, las `operations`
+con su path completo y su método, el `latencyRangeMs`, los `handledScenarios` que ese módulo
+distingue de verdad y la `scenarioMatrix` —las 18 filas con `supported: true|false` y el motivo—.
+Lo consume el tablero de Proveedores externos del portal interno para explicar cada tarjeta y para
+ofrecer sólo los escenarios que ese proveedor entiende: un desplegable de 18 opciones de las que la
+mitad devuelve 422 es peor que no ofrecer ninguna.
 
 ## Latencia
 
@@ -134,12 +155,31 @@ O en el body:
 { "scenario": "timeout", "input": {} }
 ```
 
-O fijar un escenario activo por defecto para todos los módulos:
+O fijar un escenario por defecto para el tráfico **sin corrida declarada** (namespace legacy):
 
 ```bash
 curl -X POST http://localhost:4010/mock/scenarios/active -d '{"scenario":"provider_down"}'
 curl -X POST http://localhost:4010/mock/reset   # vuelve a happy_path
 ```
+
+Ojo: desde 2.0 estas dos rutas **ya no son globales**. Tocan el namespace legacy y nada más. Antes
+movían una variable de proceso, así que dos corridas en paralelo se pisaban el escenario y el
+`reset` de una borraba el estado de la otra. Una corrida con namespace propio fija su escenario al
+darse de alta y se resetea por su propia ruta.
+
+### Un escenario que el proveedor no sabe representar es 422, no un camino feliz
+
+```bash
+curl -X POST http://localhost:4010/mock/segip/identity/verify -d '{"scenario":"cost_blocked"}'
+# 422 SCENARIO_NOT_SUPPORTED_BY_PROVIDER + supportedScenarios[]
+```
+
+Y uno que no existe es 400 `UNKNOWN_SCENARIO`. Hasta 1.x las dos cosas devolvían **200 FOUND**: una
+prueba que pedía `fraud_signal_high` a SEGIP obtenía una identidad verificada y se apuntaba un PASS.
+`GET /mock/providers` publica la matriz proveedor × escenario con `supported` y motivo, para que el
+portal ofrezca sólo lo que existe. `MOCK_PROVIDERS_STRICT_SCENARIOS=false` restaura el
+comportamiento viejo si hace falta desbloquear a un consumidor; es un cambio de contrato
+deliberado y con interruptor documentado, no un `if` escondido.
 
 Escenarios soportados (`src/scenarios.mjs`):
 
@@ -153,18 +193,115 @@ Los escenarios de transporte (`provider_down`, `unauthorized`, `rate_limited`,
 sin importar el proveedor — viven en `scenarios.mjs`, no repetidos en cada módulo. Los
 demás escenarios son de negocio y cada módulo de proveedor decide cómo responder.
 
+## Corridas aisladas: el plano de control
+
+Varias corridas de QA a la vez necesitan estado propio. Una corrida se da de alta por el plano de
+control autenticado (`MOCK_PROVIDERS_CONTROL_TOKEN`, mínimo 16 caracteres; **sin él estas rutas
+responden 503**, no quedan abiertas):
+
+```bash
+TOKEN=...   # MOCK_PROVIDERS_CONTROL_TOKEN
+curl -X POST http://localhost:4010/mock/control/runs \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"tenantId":"t-1","runId":"run-42","seed":"s-1","scenarioProfile":"happy_path"}'
+# 201 { ..., "runToken": "..." }   ← se entrega UNA vez y no vuelve a publicarse
+```
+
+El tráfico de negocio nombra la corrida por cabeceras y **tiene que traer su token**:
+
+| Cabecera | Para qué |
+| -------- | -------- |
+| `x-mock-tenant-id`, `x-mock-run-id` | Qué corrida. Nombrarla sin el token es 401. |
+| `x-mock-run-token` | Lo que impide que una cabecera pública elija namespace ajeno. |
+| `x-mock-persona-key` | Aísla estado e idempotencia por persona. |
+| `x-mock-logical-operation-id` | Identifica la operación para el plan de fallos y los reintentos. |
+| `x-mock-attempt` | Intento declarado. Si falta, lo cuenta el emulador por operación. |
+| `x-idempotency-key` | Misma clave + mismo cuerpo ⇒ se reproduce el resultado. Cuerpo distinto ⇒ 422. |
+| `traceparent` | Sólo correlación (W3C). No identifica persona ni concede permisos. |
+
+Rutas del plano de control (todas con `authorization: Bearer` y `x-mock-tenant-id`):
+
+| Ruta | Qué hace |
+| ---- | -------- |
+| `POST /mock/control/runs` | Alta de corrida; devuelve `runToken`. |
+| `GET /mock/control/runs` | Listado (sin tokens). |
+| `GET,DELETE /mock/control/runs/:runId` | Detalle y baja. |
+| `POST /mock/control/runs/:runId/reset` | Reset **con alcance**; `{"keepJournal":true}` conserva la evidencia. |
+| `PUT,DELETE /mock/control/runs/:runId/fault-plan` | Plan de fallos, validado al plantarlo. |
+| `PUT /mock/control/runs/:runId/fixtures` | Datos de persona de esa corrida. |
+| `GET /mock/control/runs/:runId/journal?after=&limit=` | Evidencia con cursor: qué llegó, con qué escenario y por qué. |
+
+El journal es lo que separa "el test pasó" de "la llamada salió por la red": un E2E que interceptó
+`fetch` no deja rastro aquí. Guarda la **forma** del cuerpo y un `payloadHash`, nunca el contenido.
+
+### Plan de fallos
+
+```json
+{
+  "rules": [
+    { "id": "segip-dos-primeros", "scenario": "provider_down",
+      "match": { "provider": "segip", "personaKey": "p-7" },
+      "applyTo": { "firstAttempts": 2 } }
+  ]
+}
+```
+
+Precedencia: regla del plan (la **más específica**, no la primera declarada) → escenario pedido en
+la llamada → perfil de la corrida → default del servidor. Dos reglas con el mismo criterio son un
+error de validación, no un desempate por orden: con orden, una regla amplia tapa a la fina en
+silencio. El contador de intentos es **por operación lógica de esa persona**, nunca del proceso.
+
+### Reinicio
+
+El estado vive en memoria: reiniciar el emulador **pierde** los namespaces, y no se disimula. Cada
+arranque tiene un `epoch`; una llamada que traiga `x-mock-epoch` de un arranque anterior recibe 409
+`NAMESPACE_LOST_ON_RESTART` en vez de un namespace vacío que parecería sano. En el perfil `recovery`
+esa distinción es justamente lo que se está probando.
+
 ## Agregar un proveedor nuevo
 
 1. Crear `src/providers/<nombre>.mjs` exportando `code`, `slug`, `mountPath`,
-   `operationPath` y `respond(scenario, input, operation)`.
+   `operationPath` y `respond(scenario, input, operation, ctx)`.
 2. Añadir los metadatos del catálogo: `domain`, `description`, `latencyRangeMs`, `operations` y
    `handledScenarios`. Son opcionales —el catálogo degrada con valores por defecto— pero sin
    ellos el proveedor sale sin explicación en el tablero del portal.
 3. Registrarlo en `src/providers/index.mjs` (`providers` array).
 
-El health check por módulo, el catálogo y el ruteo por `mountPath` salen automáticamente de esa
-lista. El tercer argumento de `respond` es la operación pedida relativa al `mountPath`
-(`/qr/generate`); sólo lo necesita un proveedor con más de una operación, como `banking.mjs`.
+El health check por módulo, el catálogo y **la tabla de rutas** salen automáticamente de esa lista.
+El ruteo es por método y path exacto: lo que no esté en `operations` es 404, y el método equivocado
+sobre una ruta que existe es 405 con `Allow`.
+
+El tercer argumento de `respond` es la operación pedida relativa al `mountPath` (`/qr/generate`);
+sólo lo necesita un proveedor con más de una operación, como `banking.mjs`. El cuarto es el
+contexto de la corrida:
+
+```js
+respond(scenario, input, operation, { personaKey, attempt, entity, setEntity })
+```
+
+`entity` es el estado previo de esa persona para esa operación (o `null`) y `setEntity` lo
+reemplaza. Vive en el namespace de la corrida, nunca en una variable del módulo: dos corridas en
+paralelo no pueden compartirlo. Un proveedor sin estado ignora el cuarto argumento.
+
+Las observaciones que el proveedor **inventa** (score, antigüedad, riesgo) se derivan con
+`src/domain/derive.mjs` a partir de la identidad de la persona, en vez de ser constantes. Un
+emulador que devuelve `bureauScore: 680` a todo el mundo convierte en tautología cualquier umbral
+que el backend aplique encima.
+
+## Cambios de contrato en 2.0 (21-sep-2026)
+
+Los cinco son deliberados y cada uno cierra un falso positivo comprobado del paquete QA:
+
+| Antes | Ahora | Hallazgo |
+| ----- | ----- | -------- |
+| Ruta inexistente bajo un `mountPath` ⇒ 200 | 404 `ROUTE_NOT_FOUND` | H04 |
+| Método equivocado ⇒ 200 | 405 + `Allow` | H05 |
+| Escenario desconocido o no soportado ⇒ 200 camino feliz | 400 / 422 con la lista | H06 |
+| JSON roto ⇒ se trataba como cuerpo vacío | 400 `INVALID_JSON` | H07 |
+| `activeScenario` y `reset` globales | Namespace por corrida; legacy aislado | H03 |
+
+`MOCK_PROVIDERS_STRICT_SCENARIOS=false` revierte sólo el tercero. Los otros cuatro no tienen
+interruptor: eran defectos, no configuración.
 
 ## Repositorio propio
 
