@@ -47,7 +47,42 @@ export function createMockServer(config, { logger = console } = {}) {
   return { server, config, store, routes };
 }
 
+/**
+ * CORS abierto a cualquier origen, reflejado (no `*`) porque el navegador exige un origen
+ * concreto —no un comodín— cuando la petición va con `credentials: include`. El QA Lab del portal
+ * llama a este emulador directo desde el navegador (`fetch` con `credentials: "include"` para
+ * reusar el mismo código que pega al backend real) y el emulador vive en otro origen
+ * (`localhost:4010` contra `localhost:5273`), así que sin esto el preflight lo bloquea el propio
+ * navegador antes de que la petición salga. Reflejar el origen es aceptable acá porque el README
+ * del emulador ya declara que nunca se publica a internet: no lleva dominio, sólo lo alcanza quien
+ * ya está en la red donde vive.
+ */
+function applyCors(req, res) {
+  const origin = req.headers.origin;
+  if (!origin) return;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+}
+
+function isPreflight(req) {
+  return (req.method ?? "GET").toUpperCase() === "OPTIONS";
+}
+
+function handlePreflight(req, res) {
+  const requestedHeaders = req.headers["access-control-request-headers"];
+  res.writeHead(204, {
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
+    "Access-Control-Allow-Headers": requestedHeaders || "*",
+    "Access-Control-Max-Age": "600",
+  });
+  res.end();
+}
+
 async function handle(req, res, routes, config, logger) {
+  applyCors(req, res);
+  if (isPreflight(req)) return handlePreflight(req, res);
+
   let pathname;
   try {
     pathname = new URL(req.url ?? "/", "http://mock.invalid").pathname;
