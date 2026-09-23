@@ -21,7 +21,16 @@ import * as digitalTrust from "./digital-trust.mjs";
  * `setEntity`. El estado vive en el namespace de la corrida, nunca en el módulo: dos corridas en
  * paralelo no pueden compartir una variable de archivo.
  */
-export const providers = [segip, infocenter, qr, banking, telco, facebook, whatsapp, digitalTrust];
+export const providers = [
+  segip,
+  infocenter,
+  qr,
+  banking,
+  telco,
+  facebook,
+  whatsapp,
+  digitalTrust,
+];
 
 export function findProviderBySlug(slug) {
   return providers.find((provider) => provider.slug === slug);

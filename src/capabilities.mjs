@@ -39,10 +39,13 @@ export const GENERIC_SCENARIOS = Object.freeze([
 ]);
 
 const REASONS = {
-  generic: "Fallo de transporte resuelto por el emulador para todos los proveedores.",
-  declared: "El módulo del proveedor construye una respuesta propia para este escenario.",
+  generic:
+    "Fallo de transporte resuelto por el emulador para todos los proveedores.",
+  declared:
+    "El módulo del proveedor construye una respuesta propia para este escenario.",
   baseline: "Caso base: toda operación tiene camino feliz.",
-  notModelled: "Este proveedor no tiene una respuesta que represente ese escenario en su dominio.",
+  notModelled:
+    "Este proveedor no tiene una respuesta que represente ese escenario en su dominio.",
 };
 
 export function isKnownScenario(scenario) {
@@ -67,16 +70,24 @@ export function supportsScenario(provider, scenario) {
 export function scenarioMatrixFor(provider) {
   const declared = provider.handledScenarios ?? [];
   return SUPPORTED_SCENARIOS.map((scenario) => {
-    if (scenario === "happy_path") return { scenario, supported: true, reason: REASONS.baseline };
-    if (isGenericScenario(scenario)) return { scenario, supported: true, reason: REASONS.generic };
+    if (scenario === "happy_path")
+      return { scenario, supported: true, reason: REASONS.baseline };
+    if (isGenericScenario(scenario))
+      return { scenario, supported: true, reason: REASONS.generic };
     const supported = declared.includes(scenario);
-    return { scenario, supported, reason: supported ? REASONS.declared : REASONS.notModelled };
+    return {
+      scenario,
+      supported,
+      reason: supported ? REASONS.declared : REASONS.notModelled,
+    };
   });
 }
 
 /** Las operaciones REALES de un proveedor: método y path exacto, ya resueltos a ruta completa. */
 export function operationsOf(provider) {
-  const declared = provider.operations ?? [{ path: provider.operationPath, method: "POST", summary: null }];
+  const declared = provider.operations ?? [
+    { path: provider.operationPath, method: "POST", summary: null },
+  ];
   return declared.map((operation) => ({
     ...operation,
     method: (operation.method ?? "POST").toUpperCase(),

@@ -10,12 +10,24 @@ export const domain = "Contactabilidad";
 export const description =
   "Confirmación del código enviado por WhatsApp y si el número es alcanzable.";
 export const latencyRangeMs = [200, 600];
-export const operations = [{ path: operationPath, method: "POST", summary: "Confirmar el código de verificación" }];
+export const operations = [
+  {
+    path: operationPath,
+    method: "POST",
+    summary: "Confirmar el código de verificación",
+  },
+];
 /**
  * `expired_token` = el código caducó. Es la rama de vencimiento que pide el arquetipo "Vencimiento"
  * del paquete QA y que antes no se podía expresar: pedirla devolvía `OTP_VERIFIED`.
  */
-export const handledScenarios = ["happy_path", "not_found", "low_confidence", "expired_token", "data_not_available"];
+export const handledScenarios = [
+  "happy_path",
+  "not_found",
+  "low_confidence",
+  "expired_token",
+  "data_not_available",
+];
 
 /**
  * Este emulador confirma un código; NO es el sistema de OTP de Atlas.
@@ -24,7 +36,12 @@ export const handledScenarios = ["happy_path", "not_found", "low_confidence", "e
  * responda `OTP_VERIFIED` no significa que el `start`/`confirm` del backend, su TTL, su límite de
  * intentos y su canal de envío estén probados. Eso vive en AtlasBackend y se prueba contra él.
  */
-export function respond(scenario, input = {}, _operation = operationPath, ctx = {}) {
+export function respond(
+  scenario,
+  input = {},
+  _operation = operationPath,
+  ctx = {},
+) {
   const identity = identityOf(input, ctx.personaKey);
 
   if (scenario === "not_found") {
@@ -57,7 +74,12 @@ export function respond(scenario, input = {}, _operation = operationPath, ctx = 
     };
   }
   if (scenario === "data_not_available") {
-    return { provider: code, status: "DATA_NOT_AVAILABLE", reasonCode: "CHANNEL_DID_NOT_ANSWER", whatsappReachable: null };
+    return {
+      provider: code,
+      status: "DATA_NOT_AVAILABLE",
+      reasonCode: "CHANNEL_DID_NOT_ANSWER",
+      whatsappReachable: null,
+    };
   }
   return {
     provider: code,

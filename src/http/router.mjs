@@ -54,10 +54,13 @@ export function resolve(routes, method, pathname) {
     const params = matchSegments(candidate, parts);
     if (params === null) continue;
     pathMatches.push(candidate);
-    if (candidate.method === method.toUpperCase()) return { kind: "match", route: candidate, params };
+    if (candidate.method === method.toUpperCase())
+      return { kind: "match", route: candidate, params };
   }
   if (pathMatches.length > 0) {
-    const allow = [...new Set(pathMatches.map((candidate) => candidate.method))].sort();
+    const allow = [
+      ...new Set(pathMatches.map((candidate) => candidate.method)),
+    ].sort();
     // HEAD lo sirve Node sobre el GET; declararlo evita que un cliente lo descarte de antemano.
     if (allow.includes("GET") && !allow.includes("HEAD")) allow.push("HEAD");
     return { kind: "method_not_allowed", allow: allow.sort() };

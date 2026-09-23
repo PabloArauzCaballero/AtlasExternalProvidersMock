@@ -14,7 +14,10 @@
 
 export function sendJson(res, statusCode, payload, headers = {}) {
   if (res.writableEnded || res.destroyed) return false;
-  res.writeHead(statusCode, { "content-type": "application/json; charset=utf-8", ...headers });
+  res.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    ...headers,
+  });
   res.end(JSON.stringify(payload));
   return true;
 }
@@ -24,8 +27,20 @@ export function sendJson(res, statusCode, payload, headers = {}) {
  * petición (400/404/405/413/415/422), nunca la respuesta de negocio de un proveedor: un consumidor
  * tiene que poder distinguir "el emulador no entendió" de "el proveedor contestó que no".
  */
-export function sendError(res, statusCode, code, detail, extra = {}, headers = {}) {
-  return sendJson(res, statusCode, { ok: false, error: code, detail, ...extra }, headers);
+export function sendError(
+  res,
+  statusCode,
+  code,
+  detail,
+  extra = {},
+  headers = {},
+) {
+  return sendJson(
+    res,
+    statusCode,
+    { ok: false, error: code, detail, ...extra },
+    headers,
+  );
 }
 
 /** Respuesta cruda, para el único caso que NO es JSON: el escenario `invalid_payload`. */

@@ -23,8 +23,12 @@ function integer(env, key, fallback, { min, max }) {
   const raw = env[key];
   if (raw === undefined || raw === "") return fallback;
   const value = Number(raw);
-  if (!Number.isInteger(value)) throw new ConfigError(`${key} tiene que ser un entero; llegó "${raw}".`);
-  if (value < min || value > max) throw new ConfigError(`${key} tiene que estar entre ${min} y ${max}; llegó ${value}.`);
+  if (!Number.isInteger(value))
+    throw new ConfigError(`${key} tiene que ser un entero; llegó "${raw}".`);
+  if (value < min || value > max)
+    throw new ConfigError(
+      `${key} tiene que estar entre ${min} y ${max}; llegó ${value}.`,
+    );
   return value;
 }
 
@@ -33,7 +37,9 @@ function fraction(env, key, fallback) {
   if (raw === undefined || raw === "") return fallback;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0 || value > 1) {
-    throw new ConfigError(`${key} tiene que ser una fracción entre 0 y 1; llegó "${raw}".`);
+    throw new ConfigError(
+      `${key} tiene que ser una fracción entre 0 y 1; llegó "${raw}".`,
+    );
   }
   return value;
 }
@@ -54,20 +60,35 @@ function flag(env, key, fallback) {
 function controlToken(env) {
   const raw = env.MOCK_PROVIDERS_CONTROL_TOKEN;
   if (raw === undefined || raw === "") return null;
-  if (raw.length < 16) throw new ConfigError("MOCK_PROVIDERS_CONTROL_TOKEN tiene que tener al menos 16 caracteres.");
+  if (raw.length < 16)
+    throw new ConfigError(
+      "MOCK_PROVIDERS_CONTROL_TOKEN tiene que tener al menos 16 caracteres.",
+    );
   return raw;
 }
 
 export function loadConfig(env = process.env) {
   const config = {
     port: integer(env, "MOCK_PROVIDERS_PORT", 4010, { min: 0, max: 65_535 }),
-    defaultLatencyMs: integer(env, "MOCK_PROVIDERS_DEFAULT_LATENCY_MS", 300, { min: 0, max: 60_000 }),
+    defaultLatencyMs: integer(env, "MOCK_PROVIDERS_DEFAULT_LATENCY_MS", 300, {
+      min: 0,
+      max: 60_000,
+    }),
     /** Techo de `x-mock-latency-ms`. Una cabecera con 10^9 no es una prueba de cola: es un cuelgue. */
-    maxLatencyMs: integer(env, "MOCK_PROVIDERS_MAX_LATENCY_MS", 30_000, { min: 0, max: 300_000 }),
+    maxLatencyMs: integer(env, "MOCK_PROVIDERS_MAX_LATENCY_MS", 30_000, {
+      min: 0,
+      max: 300_000,
+    }),
     /** Cuánto se suma al retraso pedido para el escenario `timeout`, por encima del deadline del consumidor. */
-    timeoutExtraMs: integer(env, "MOCK_PROVIDERS_TIMEOUT_EXTRA_MS", 9_000, { min: 0, max: 120_000 }),
+    timeoutExtraMs: integer(env, "MOCK_PROVIDERS_TIMEOUT_EXTRA_MS", 9_000, {
+      min: 0,
+      max: 120_000,
+    }),
     backgroundErrorRate: fraction(env, "MOCK_PROVIDERS_ERROR_RATE", 0),
-    maxBodyBytes: integer(env, "MOCK_PROVIDERS_MAX_BODY_BYTES", 64 * 1024, { min: 1_024, max: 8 * 1024 * 1024 }),
+    maxBodyBytes: integer(env, "MOCK_PROVIDERS_MAX_BODY_BYTES", 64 * 1024, {
+      min: 1_024,
+      max: 8 * 1024 * 1024,
+    }),
     /**
      * Estricto por defecto: un escenario que este proveedor no sabe representar es un 422 con la
      * lista de los que sí, no un happy path silencioso. Es un cambio de contrato deliberado
@@ -77,9 +98,20 @@ export function loadConfig(env = process.env) {
     defaultScenario: env.MOCK_PROVIDERS_SCENARIO ?? "happy_path",
     controlToken: controlToken(env),
     /** Namespaces: techo de memoria. El emulador vive en una sola instancia; no puede crecer sin fin. */
-    maxNamespaces: integer(env, "MOCK_PROVIDERS_MAX_NAMESPACES", 200, { min: 1, max: 10_000 }),
-    namespaceTtlMs: integer(env, "MOCK_PROVIDERS_NAMESPACE_TTL_MS", 3_600_000, { min: 60_000, max: 86_400_000 }),
-    journalMaxEntries: integer(env, "MOCK_PROVIDERS_JOURNAL_MAX_ENTRIES", 2_000, { min: 10, max: 100_000 }),
+    maxNamespaces: integer(env, "MOCK_PROVIDERS_MAX_NAMESPACES", 200, {
+      min: 1,
+      max: 10_000,
+    }),
+    namespaceTtlMs: integer(env, "MOCK_PROVIDERS_NAMESPACE_TTL_MS", 3_600_000, {
+      min: 60_000,
+      max: 86_400_000,
+    }),
+    journalMaxEntries: integer(
+      env,
+      "MOCK_PROVIDERS_JOURNAL_MAX_ENTRIES",
+      2_000,
+      { min: 10, max: 100_000 },
+    ),
   };
 
   if (config.defaultLatencyMs > config.maxLatencyMs) {

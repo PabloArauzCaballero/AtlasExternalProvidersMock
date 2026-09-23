@@ -1,4 +1,10 @@
-import { identityOf, derivedReference, requestedAmount, requestedCurrency, requestedReference } from "../domain/derive.mjs";
+import {
+  identityOf,
+  derivedReference,
+  requestedAmount,
+  requestedCurrency,
+  requestedReference,
+} from "../domain/derive.mjs";
 
 export const code = "QR_GENERIC";
 export const slug = "qr";
@@ -10,12 +16,25 @@ export const domain = "Pagos";
 export const description =
   "Verificación de pagos por QR interoperable: confirma monto, referencia y duplicados.";
 export const latencyRangeMs = [250, 700];
-export const operations = [{ path: operationPath, method: "POST", summary: "Verificar que un pago por QR entró" }];
+export const operations = [
+  {
+    path: operationPath,
+    method: "POST",
+    summary: "Verificar que un pago por QR entró",
+  },
+];
 /**
  * `data_not_available` = el pago todavía no llegó (PENDIENTE), que es el estado inicial real de una
  * verificación y no una respuesta de error. `expired_token` = la orden de cobro venció.
  */
-export const handledScenarios = ["happy_path", "not_found", "partial_match", "duplicate_request", "data_not_available", "expired_token"];
+export const handledScenarios = [
+  "happy_path",
+  "not_found",
+  "partial_match",
+  "duplicate_request",
+  "data_not_available",
+  "expired_token",
+];
 
 /**
  * Verificación de un cobro por QR, COHERENTE con lo que se está cobrando.
@@ -30,32 +49,67 @@ export const handledScenarios = ["happy_path", "not_found", "partial_match", "du
  * devuelve un monto deliberadamente MENOR al pedido (una discrepancia comprobable, no un número
  * suelto) y el duplicado se detecta contra el estado de la corrida, no contra un escenario.
  */
-export function respond(scenario, input = {}, _operation = operationPath, ctx = {}) {
+export function respond(
+  scenario,
+  input = {},
+  _operation = operationPath,
+  ctx = {},
+) {
   const identity = identityOf(input, ctx.personaKey);
   const amount = requestedAmount(input);
   const currency = requestedCurrency(input);
-  const reference = requestedReference(input) ?? derivedReference("QR-REF", identity, "payment");
-  const providerReference = derivedReference("QR-MOCK", identity, `payment|${reference}`);
+  const reference =
+    requestedReference(input) ??
+    derivedReference("QR-REF", identity, "payment");
+  const providerReference = derivedReference(
+    "QR-MOCK",
+    identity,
+    `payment|${reference}`,
+  );
 
   if (scenario === "not_found") {
-    return { provider: code, status: "PAYMENT_NOT_FOUND", amountMatches: false, referenceMatches: false, reference, providerReference };
+    return {
+      provider: code,
+      status: "PAYMENT_NOT_FOUND",
+      amountMatches: false,
+      referenceMatches: false,
+      reference,
+      providerReference,
+    };
   }
 
   if (scenario === "data_not_available") {
     // El pago aún no entró. Se registra como PENDIENTE en el estado de la corrida para que una
     // verificación posterior pueda encontrarlo así en vez de partir de cero.
     ctx.setEntity?.({ phase: "PENDING", reference, amount, currency });
-    return { provider: code, status: "PAYMENT_PENDING", amountMatches: null, referenceMatches: null, reference, currency, providerReference };
+    return {
+      provider: code,
+      status: "PAYMENT_PENDING",
+      amountMatches: null,
+      referenceMatches: null,
+      reference,
+      currency,
+      providerReference,
+    };
   }
 
   if (scenario === "expired_token") {
-    return { provider: code, status: "PAYMENT_EXPIRED", amountMatches: null, referenceMatches: true, reference, currency, providerReference };
+    return {
+      provider: code,
+      status: "PAYMENT_EXPIRED",
+      amountMatches: null,
+      referenceMatches: true,
+      reference,
+      currency,
+      providerReference,
+    };
   }
 
   if (scenario === "partial_match") {
     // Discrepancia REAL contra lo pedido: 10 % menos. Sin monto pedido no hay discrepancia que
     // afirmar, y se dice así en vez de inventar una.
-    const paidAmount = amount === null ? null : Number((amount * 0.9).toFixed(2));
+    const paidAmount =
+      amount === null ? null : Number((amount * 0.9).toFixed(2));
     return {
       provider: code,
       status: "PAYMENT_PARTIAL_MATCH",

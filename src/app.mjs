@@ -12,15 +12,37 @@
  */
 import { createServer } from "node:http";
 import { providers, findProviderBySlug } from "./providers/index.mjs";
-import { SUPPORTED_SCENARIOS, transportFailureFor, backgroundFailureFor, latencyMsFor } from "./scenarios.mjs";
-import { SCHEMA_VERSION, providerCatalog, isKnownScenario, supportsScenario, scenariosSupportedBy, operationsOf } from "./capabilities.mjs";
+import {
+  SUPPORTED_SCENARIOS,
+  transportFailureFor,
+  backgroundFailureFor,
+  latencyMsFor,
+} from "./scenarios.mjs";
+import {
+  SCHEMA_VERSION,
+  providerCatalog,
+  isKnownScenario,
+  supportsScenario,
+  scenariosSupportedBy,
+  operationsOf,
+} from "./capabilities.mjs";
 import { readJsonBody } from "./http/body.mjs";
 import { sendJson, sendError, sendRaw } from "./http/respond.mjs";
 import { delay } from "./http/delay.mjs";
 import { route, resolve as resolveRoute } from "./http/router.mjs";
-import { createNamespaceStore, transitionEntity, readEntity, rememberIdempotent, nextAttempt } from "./runtime/namespaces.mjs";
+import {
+  createNamespaceStore,
+  transitionEntity,
+  readEntity,
+  rememberIdempotent,
+  nextAttempt,
+} from "./runtime/namespaces.mjs";
 import { resolveScenario } from "./runtime/fault-plan.mjs";
-import { readContext, authorizeContext, traceIdOf } from "./runtime/context.mjs";
+import {
+  readContext,
+  authorizeContext,
+  traceIdOf,
+} from "./runtime/context.mjs";
 import { redact, payloadHash } from "./runtime/journal.mjs";
 import { controlRoutes } from "./control/routes.mjs";
 
@@ -32,15 +54,31 @@ export function createMockServer(config, { logger = console } = {}) {
     defaultScenario: config.defaultScenario,
   });
 
-  const routes = [...healthRoutes(store, config), ...controlRoutes(store, config), ...providerRoutes(store, config)];
+  const routes = [
+    ...healthRoutes(store, config),
+    ...controlRoutes(store, config),
+    ...providerRoutes(store),
+  ];
 
   const server = createServer((req, res) => {
     handle(req, res, routes, config, logger).catch((error) => {
       // El detalle interno va al log, no al cliente: un emulador que devuelve su propio stack es
       // una fuga gratuita, y un `catch` que intenta escribir sobre una respuesta ya cerrada tumba
       // el proceso. `sendError` comprueba las dos cosas.
-      logger.error?.(JSON.stringify({ level: "error", event: "unhandled", path: req.url, message: error?.message }));
-      sendError(res, 500, "MOCK_SERVER_ERROR", "El emulador no pudo atender la petición.");
+      logger.error?.(
+        JSON.stringify({
+          level: "error",
+          event: "unhandled",
+          path: req.url,
+          message: error?.message,
+        }),
+      );
+      sendError(
+        res,
+        500,
+        "MOCK_SERVER_ERROR",
+        "El emulador no pudo atender la petición.",
+      );
     });
   });
 
@@ -72,7 +110,8 @@ function isPreflight(req) {
 function handlePreflight(req, res) {
   const requestedHeaders = req.headers["access-control-request-headers"];
   res.writeHead(204, {
-    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
+    "Access-Control-Allow-Methods":
+      "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": requestedHeaders || "*",
     "Access-Control-Max-Age": "600",
   });
@@ -87,19 +126,44 @@ async function handle(req, res, routes, config, logger) {
   try {
     pathname = new URL(req.url ?? "/", "http://mock.invalid").pathname;
   } catch {
-    return sendError(res, 400, "INVALID_REQUEST_TARGET", "La URL de la petición no es válida.");
+    return sendError(
+      res,
+      400,
+      "INVALID_REQUEST_TARGET",
+      "La URL de la petición no es válida.",
+    );
   }
 
   const match = resolveRoute(routes, req.method ?? "GET", pathname);
   if (match.kind === "not_found") {
-    return sendError(res, 404, "ROUTE_NOT_FOUND", "Este emulador no expone esa ruta.", { path: pathname, method: req.method });
+    return sendError(
+      res,
+      404,
+      "ROUTE_NOT_FOUND",
+      "Este emulador no expone esa ruta.",
+      { path: pathname, method: req.method },
+    );
   }
   if (match.kind === "method_not_allowed") {
     // 405 + Allow, no 404: la diferencia es lo que deja a un consumidor corregir la llamada en vez
     // de concluir que el proveedor no existe.
-    return sendError(res, 405, "METHOD_NOT_ALLOWED", `Esa ruta existe, pero no con ${req.method}.`, { allow: match.allow }, { allow: match.allow.join(", ") });
+    return sendError(
+      res,
+      405,
+      "METHOD_NOT_ALLOWED",
+      `Esa ruta existe, pero no con ${req.method}.`,
+      { allow: match.allow },
+      { allow: match.allow.join(", ") },
+    );
   }
-  return match.route.handler({ req, res, params: match.params, url: new URL(req.url ?? "/", "http://mock.invalid"), config, logger });
+  return match.route.handler({
+    req,
+    res,
+    params: match.params,
+    url: new URL(req.url ?? "/", "http://mock.invalid"),
+    config,
+    logger,
+  });
 }
 
 /* ------------------------------------------------------------------ salud */
@@ -126,16 +190,29 @@ function healthRoutes(store, config) {
     const problems = [];
     for (const provider of providers) {
       const operations = operationsOf(provider);
-      if (operations.length === 0) problems.push(`${provider.code} no declara operaciones.`);
-      if (operations.some((operation) => !operation.fullPath.startsWith("/mock/"))) problems.push(`${provider.code} declara una operación fuera de /mock.`);
-      if (typeof provider.respond !== "function") problems.push(`${provider.code} no expone respond().`);
-      if (scenariosSupportedBy(provider).length === 0) problems.push(`${provider.code} no soporta ningún escenario.`);
+      if (operations.length === 0)
+        problems.push(`${provider.code} no declara operaciones.`);
+      if (
+        operations.some((operation) => !operation.fullPath.startsWith("/mock/"))
+      )
+        problems.push(`${provider.code} declara una operación fuera de /mock.`);
+      if (typeof provider.respond !== "function")
+        problems.push(`${provider.code} no expone respond().`);
+      if (scenariosSupportedBy(provider).length === 0)
+        problems.push(`${provider.code} no soporta ningún escenario.`);
     }
     return problems;
   };
 
   return [
-    route("GET", "/mock/live", ({ res }) => sendJson(res, 200, { ok: true, status: "LIVE", epoch: store.epoch, schemaVersion: SCHEMA_VERSION })),
+    route("GET", "/mock/live", ({ res }) =>
+      sendJson(res, 200, {
+        ok: true,
+        status: "LIVE",
+        epoch: store.epoch,
+        schemaVersion: SCHEMA_VERSION,
+      }),
+    ),
 
     route("GET", "/mock/ready", ({ res }) => {
       const problems = readiness();
@@ -163,8 +240,19 @@ function healthRoutes(store, config) {
 
     route("GET", "/mock/health/:slug", ({ res, params }) => {
       const provider = findProviderBySlug(params.slug);
-      if (!provider) return sendError(res, 404, "UNKNOWN_MODULE", "El emulador no expone ese módulo.", { slug: params.slug });
-      return sendJson(res, 200, { ok: true, ...moduleHealth(provider), schemaVersion: SCHEMA_VERSION });
+      if (!provider)
+        return sendError(
+          res,
+          404,
+          "UNKNOWN_MODULE",
+          "El emulador no expone ese módulo.",
+          { slug: params.slug },
+        );
+      return sendJson(res, 200, {
+        ok: true,
+        ...moduleHealth(provider),
+        schemaVersion: SCHEMA_VERSION,
+      });
     }),
 
     route("GET", "/mock/providers", ({ res }) => {
@@ -181,7 +269,11 @@ function healthRoutes(store, config) {
     }),
 
     route("GET", "/mock/scenarios", ({ res }) =>
-      sendJson(res, 200, { schemaVersion: SCHEMA_VERSION, activeScenario: store.resolve({}).namespace.scenarioProfile, scenarios: SUPPORTED_SCENARIOS }),
+      sendJson(res, 200, {
+        schemaVersion: SCHEMA_VERSION,
+        activeScenario: store.resolve({}).namespace.scenarioProfile,
+        scenarios: SUPPORTED_SCENARIOS,
+      }),
     ),
 
     /**
@@ -189,15 +281,36 @@ function healthRoutes(store, config) {
      * Antes movía una variable global y con ella el comportamiento de todas las corridas a la vez
      * (hallazgo H03). Una corrida nueva fija su escenario al darse de alta.
      */
-    route("POST", "/mock/scenarios/active", async ({ req, res, config: cfg }) => {
-      const body = await readJsonBody(req, { maxBytes: cfg.maxBodyBytes });
-      if (!body.ok) return body.aborted ? undefined : sendError(res, body.status, body.code, body.detail);
-      const scenario = typeof body.value.scenario === "string" ? body.value.scenario : req.headers["x-mock-scenario"];
-      if (!isKnownScenario(scenario)) return sendError(res, 400, "UNKNOWN_SCENARIO", "Ese escenario no existe.", { scenario: scenario ?? null, scenarios: SUPPORTED_SCENARIOS });
-      const legacy = store.resolve({}).namespace;
-      legacy.scenarioProfile = scenario;
-      return sendJson(res, 200, { ok: true, scope: "legacy", activeScenario: legacy.scenarioProfile });
-    }),
+    route(
+      "POST",
+      "/mock/scenarios/active",
+      async ({ req, res, config: cfg }) => {
+        const body = await readJsonBody(req, { maxBytes: cfg.maxBodyBytes });
+        if (!body.ok)
+          return body.aborted
+            ? undefined
+            : sendError(res, body.status, body.code, body.detail);
+        const scenario =
+          typeof body.value.scenario === "string"
+            ? body.value.scenario
+            : req.headers["x-mock-scenario"];
+        if (!isKnownScenario(scenario))
+          return sendError(
+            res,
+            400,
+            "UNKNOWN_SCENARIO",
+            "Ese escenario no existe.",
+            { scenario: scenario ?? null, scenarios: SUPPORTED_SCENARIOS },
+          );
+        const legacy = store.resolve({}).namespace;
+        legacy.scenarioProfile = scenario;
+        return sendJson(res, 200, {
+          ok: true,
+          scope: "legacy",
+          activeScenario: legacy.scenarioProfile,
+        });
+      },
+    ),
 
     route("POST", "/mock/reset", ({ res }) => {
       const legacy = store.resolve({}).namespace;
@@ -205,22 +318,32 @@ function healthRoutes(store, config) {
       legacy.scenarioProfile = config.defaultScenario;
       // El alcance se dice en la respuesta: un operador tiene que saber que esto NO tocó las
       // corridas activas, que era justo lo que el reset global rompía.
-      return sendJson(res, 200, { ok: true, scope: "legacy", activeScenario: legacy.scenarioProfile, note: "Las corridas con namespace propio no se tocan." });
+      return sendJson(res, 200, {
+        ok: true,
+        scope: "legacy",
+        activeScenario: legacy.scenarioProfile,
+        note: "Las corridas con namespace propio no se tocan.",
+      });
     }),
   ];
 }
 
 /* -------------------------------------------------------------- proveedores */
 
-function providerRoutes(store, config) {
+function providerRoutes(store) {
   const built = [];
   for (const provider of providers) {
     for (const operation of operationsOf(provider)) {
       built.push(
-        route(operation.method, operation.fullPath, (ctx) => handleProviderCall({ ...ctx, provider, operation, store }), {
-          provider: provider.code,
-          operation: operation.path,
-        }),
+        route(
+          operation.method,
+          operation.fullPath,
+          (ctx) => handleProviderCall({ ...ctx, provider, operation, store }),
+          {
+            provider: provider.code,
+            operation: operation.path,
+          },
+        ),
       );
     }
   }
@@ -232,49 +355,94 @@ function latencyFor(req, scenario, provider, config) {
   if (typeof raw === "string" && raw.trim() !== "") {
     const value = Number(raw);
     // Un `x-mock-latency-ms: 1e9` no es una prueba de cola larga: es un cuelgue con otro nombre.
-    if (!Number.isFinite(value) || value < 0) return { ok: false, detail: `x-mock-latency-ms tiene que ser un número ≥ 0; llegó "${raw}".` };
-    if (value > config.maxLatencyMs) return { ok: false, detail: `x-mock-latency-ms (${value}) supera el techo configurado (${config.maxLatencyMs}).` };
+    if (!Number.isFinite(value) || value < 0)
+      return {
+        ok: false,
+        detail: `x-mock-latency-ms tiene que ser un número ≥ 0; llegó "${raw}".`,
+      };
+    if (value > config.maxLatencyMs)
+      return {
+        ok: false,
+        detail: `x-mock-latency-ms (${value}) supera el techo configurado (${config.maxLatencyMs}).`,
+      };
     return { ok: true, ms: value, intended: value };
   }
   const ms = latencyMsFor(scenario, provider, config.defaultLatencyMs);
   return { ok: true, ms: Math.min(ms, config.maxLatencyMs), intended: ms };
 }
 
-async function handleProviderCall({ req, res, provider, operation, store, config, logger }) {
+async function handleProviderCall({
+  req,
+  res,
+  provider,
+  operation,
+  store,
+  config,
+  logger,
+}) {
   const startedAt = Date.now();
   const body = await readJsonBody(req, { maxBytes: config.maxBodyBytes });
   if (!body.ok) {
     if (body.aborted) return undefined; // el cliente se fue: no hay a quién contestar
     // Con un cuerpo rechazado queda entrada sin consumir: `connection: close` evita que el resto
     // del cuerpo se interprete como la siguiente petición del keep-alive.
-    return sendError(res, body.status, body.code, body.detail, {}, body.status === 413 ? { connection: "close" } : {});
+    return sendError(
+      res,
+      body.status,
+      body.code,
+      body.detail,
+      {},
+      body.status === 413 ? { connection: "close" } : {},
+    );
   }
 
   const context = readContext(req, body.value);
   const authorized = authorizeContext(store, context);
-  if (!authorized.ok) return sendError(res, authorized.status, authorized.code, authorized.detail);
+  if (!authorized.ok)
+    return sendError(
+      res,
+      authorized.status,
+      authorized.code,
+      authorized.detail,
+    );
   const namespace = authorized.namespace;
   namespace.requestCount += 1;
 
-  const explicitHeader = typeof req.headers["x-mock-scenario"] === "string" ? req.headers["x-mock-scenario"].trim() : "";
-  const explicitBody = typeof body.value.scenario === "string" ? body.value.scenario.trim() : "";
+  const explicitHeader =
+    typeof req.headers["x-mock-scenario"] === "string"
+      ? req.headers["x-mock-scenario"].trim()
+      : "";
+  const explicitBody =
+    typeof body.value.scenario === "string" ? body.value.scenario.trim() : "";
   const explicitScenario = explicitHeader || explicitBody || null;
 
   // Se valida ANTES de resolver precedencias: un escenario que no existe es un error del
   // consumidor, y devolverle el caso feliz (hallazgo H06) es convertir su error en un PASS.
   if (explicitScenario && !isKnownScenario(explicitScenario)) {
-    return sendError(res, 400, "UNKNOWN_SCENARIO", "Ese escenario no existe en este emulador.", {
-      scenario: explicitScenario,
-      scenarios: SUPPORTED_SCENARIOS,
-    });
+    return sendError(
+      res,
+      400,
+      "UNKNOWN_SCENARIO",
+      "Ese escenario no existe en este emulador.",
+      {
+        scenario: explicitScenario,
+        scenarios: SUPPORTED_SCENARIOS,
+      },
+    );
   }
 
   const operationKey = `${provider.slug}|${operation.path}|${context.personaKey ?? "-"}|${context.logicalOperationId ?? "-"}`;
-  const attempt = context.declaredAttempt ?? nextAttempt(namespace, operationKey);
+  const attempt =
+    context.declaredAttempt ?? nextAttempt(namespace, operationKey);
 
   const decision = resolveScenario({
     plan: namespace.faultPlan,
-    context: { provider: provider.slug, operation: operation.path, personaKey: context.personaKey, logicalOperationId: context.logicalOperationId },
+    context: {
+      provider: provider.slug,
+      operation: operation.path,
+      personaKey: context.personaKey,
+      logicalOperationId: context.logicalOperationId,
+    },
     attempt,
     explicitScenario,
     runProfileScenario: namespace.scenarioProfile,
@@ -283,24 +451,53 @@ async function handleProviderCall({ req, res, provider, operation, store, config
   const scenario = decision.scenario;
 
   if (config.strictScenarios && !supportsScenario(provider, scenario)) {
-    journal(namespace, { type: "rejected", provider: provider.code, scenario, reason: "SCENARIO_NOT_SUPPORTED_BY_PROVIDER", context, operation: operation.path, statusCode: 422 });
-    return sendError(res, 422, "SCENARIO_NOT_SUPPORTED_BY_PROVIDER", `${provider.code} no sabe representar "${scenario}".`, {
+    journal(namespace, {
+      type: "rejected",
       provider: provider.code,
       scenario,
-      supportedScenarios: scenariosSupportedBy(provider),
-      source: decision.source,
+      reason: "SCENARIO_NOT_SUPPORTED_BY_PROVIDER",
+      context,
+      operation: operation.path,
+      statusCode: 422,
     });
+    return sendError(
+      res,
+      422,
+      "SCENARIO_NOT_SUPPORTED_BY_PROVIDER",
+      `${provider.code} no sabe representar "${scenario}".`,
+      {
+        provider: provider.code,
+        scenario,
+        supportedScenarios: scenariosSupportedBy(provider),
+        source: decision.source,
+      },
+    );
   }
 
   const latency = latencyFor(req, scenario, provider, config);
-  if (!latency.ok) return sendError(res, 400, "INVALID_LATENCY_HEADER", latency.detail);
+  if (!latency.ok)
+    return sendError(res, 400, "INVALID_LATENCY_HEADER", latency.detail);
 
-  const waitMs = scenario === "timeout" ? Math.min(latency.ms + config.timeoutExtraMs, config.maxLatencyMs + config.timeoutExtraMs) : latency.ms;
+  const waitMs =
+    scenario === "timeout"
+      ? Math.min(
+          latency.ms + config.timeoutExtraMs,
+          config.maxLatencyMs + config.timeoutExtraMs,
+        )
+      : latency.ms;
   const waited = await delay(waitMs, res);
   if (waited.aborted) {
     // El consumidor abortó —que en `timeout` es EXACTAMENTE lo que se está probando—. Queda en el
     // journal como aborto, no como éxito ni como fallo del proveedor.
-    journal(namespace, { type: "aborted", provider: provider.code, scenario, context, operation: operation.path, intendedDelayMs: waitMs, actualServiceTimeMs: Date.now() - startedAt });
+    journal(namespace, {
+      type: "aborted",
+      provider: provider.code,
+      scenario,
+      context,
+      operation: operation.path,
+      intendedDelayMs: waitMs,
+      actualServiceTimeMs: Date.now() - startedAt,
+    });
     return undefined;
   }
 
@@ -317,38 +514,88 @@ async function handleProviderCall({ req, res, provider, operation, store, config
   };
 
   if (scenario === "invalid_payload") {
-    journal(namespace, { ...shared, type: "responded", statusCode: 200, injected: "MALFORMED_JSON", actualServiceTimeMs: Date.now() - startedAt });
+    journal(namespace, {
+      ...shared,
+      type: "responded",
+      statusCode: 200,
+      injected: "MALFORMED_JSON",
+      actualServiceTimeMs: Date.now() - startedAt,
+    });
     // Inyección declarada: JSON sintácticamente roto. Es distinto de un schema inválido, y el
     // journal lo dice para que el informe no mezcle las dos clases de fallo.
     return sendRaw(res, 200, "application/json", "{ invalid-json");
   }
 
-  const transport = transportFailureFor(scenario) ?? backgroundFailureFor(config.backgroundErrorRate, Boolean(explicitScenario) || decision.source === "fault_plan");
+  const transport =
+    transportFailureFor(scenario) ??
+    backgroundFailureFor(
+      config.backgroundErrorRate,
+      Boolean(explicitScenario) || decision.source === "fault_plan",
+    );
   if (transport) {
     const headers = transport.statusCode === 429 ? { "retry-after": "2" } : {};
-    journal(namespace, { ...shared, type: "responded", statusCode: transport.statusCode, outcome: transport.payload.status, actualServiceTimeMs: Date.now() - startedAt });
-    return sendJson(res, transport.statusCode, { ...transport.payload, schemaVersion: SCHEMA_VERSION }, headers);
+    journal(namespace, {
+      ...shared,
+      type: "responded",
+      statusCode: transport.statusCode,
+      outcome: transport.payload.status,
+      actualServiceTimeMs: Date.now() - startedAt,
+    });
+    return sendJson(
+      res,
+      transport.statusCode,
+      { ...transport.payload, schemaVersion: SCHEMA_VERSION },
+      headers,
+    );
   }
 
   const idempotent = rememberIdempotent(
     namespace,
-    { principal: context.personaKey, operation: `${provider.slug}${operation.path}`, key: context.idempotencyKey },
+    {
+      principal: context.personaKey,
+      operation: `${provider.slug}${operation.path}`,
+      key: context.idempotencyKey,
+    },
     body.value.input ?? {},
     () =>
       provider.respond(scenario, body.value.input ?? {}, operation.path, {
         personaKey: context.personaKey,
         attempt,
-        entity: readEntity(namespace, { personaKey: context.personaKey, provider: provider.slug, entityKey: operation.path }),
-        setEntity: (next) => transitionEntity(namespace, { personaKey: context.personaKey, provider: provider.slug, entityKey: operation.path }, () => next),
+        entity: readEntity(namespace, {
+          personaKey: context.personaKey,
+          provider: provider.slug,
+          entityKey: operation.path,
+        }),
+        setEntity: (next) =>
+          transitionEntity(
+            namespace,
+            {
+              personaKey: context.personaKey,
+              provider: provider.slug,
+              entityKey: operation.path,
+            },
+            () => next,
+          ),
       }),
   );
 
   if (idempotent.kind === "mismatch") {
-    journal(namespace, { ...shared, type: "responded", statusCode: 422, outcome: "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_BODY" });
-    return sendError(res, 422, "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_BODY", "Esa clave de idempotencia ya se usó con otro cuerpo.", {
-      storedPayloadHash: idempotent.storedHash,
-      receivedPayloadHash: idempotent.receivedHash,
+    journal(namespace, {
+      ...shared,
+      type: "responded",
+      statusCode: 422,
+      outcome: "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_BODY",
     });
+    return sendError(
+      res,
+      422,
+      "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_BODY",
+      "Esa clave de idempotencia ya se usó con otro cuerpo.",
+      {
+        storedPayloadHash: idempotent.storedHash,
+        receivedPayloadHash: idempotent.receivedHash,
+      },
+    );
   }
 
   const payload = { ...idempotent.result, schemaVersion: SCHEMA_VERSION };
@@ -360,8 +607,23 @@ async function handleProviderCall({ req, res, provider, operation, store, config
     idempotency: idempotent.kind,
     actualServiceTimeMs: Date.now() - startedAt,
   });
-  logger.debug?.(JSON.stringify({ level: "debug", event: "provider_call", provider: provider.code, scenario, attempt, runId: context.runId ?? null }));
-  return sendJson(res, 200, idempotent.kind === "replay" ? { ...payload, idempotentReplay: true } : payload);
+  logger.debug?.(
+    JSON.stringify({
+      level: "debug",
+      event: "provider_call",
+      provider: provider.code,
+      scenario,
+      attempt,
+      runId: context.runId ?? null,
+    }),
+  );
+  return sendJson(
+    res,
+    200,
+    idempotent.kind === "replay"
+      ? { ...payload, idempotentReplay: true }
+      : payload,
+  );
 }
 
 function journal(namespace, entry) {

@@ -10,17 +10,36 @@ export const domain = "Confianza digital";
 export const description =
   "Riesgo del correo, del dispositivo y de la IP; señal de identidad sintética.";
 export const latencyRangeMs = [300, 900];
-export const operations = [{ path: operationPath, method: "POST", summary: "Evaluar señales de riesgo digital" }];
-export const handledScenarios = ["happy_path", "fraud_signal_high", "low_confidence", "data_not_available"];
+export const operations = [
+  {
+    path: operationPath,
+    method: "POST",
+    summary: "Evaluar señales de riesgo digital",
+  },
+];
+export const handledScenarios = [
+  "happy_path",
+  "fraud_signal_high",
+  "low_confidence",
+  "data_not_available",
+];
 
-export function respond(scenario, input = {}, _operation = operationPath, ctx = {}) {
+export function respond(
+  scenario,
+  input = {},
+  _operation = operationPath,
+  ctx = {},
+) {
   const identity = identityOf(input, ctx.personaKey);
 
   if (scenario === "fraud_signal_high") {
     return {
       provider: code,
       status: "COMPLETED",
-      emailRiskLevel: derivedPick(identity, "dt.email.risk", ["MEDIUM", "HIGH"]),
+      emailRiskLevel: derivedPick(identity, "dt.email.risk", [
+        "MEDIUM",
+        "HIGH",
+      ]),
       deviceRiskScore: derivedFloat(identity, "dt.device.risk", 0.7, 0.95),
       ipRiskScore: derivedFloat(identity, "dt.ip.risk", 0.7, 0.95),
       syntheticIdentityRiskLevel: "HIGH",
@@ -44,7 +63,12 @@ export function respond(scenario, input = {}, _operation = operationPath, ctx = 
     };
   }
   if (scenario === "data_not_available") {
-    return { provider: code, status: "DATA_NOT_AVAILABLE", reasonCode: "NO_DEVICE_FINGERPRINT", signalCoverage: 0 };
+    return {
+      provider: code,
+      status: "DATA_NOT_AVAILABLE",
+      reasonCode: "NO_DEVICE_FINGERPRINT",
+      signalCoverage: 0,
+    };
   }
 
   return {

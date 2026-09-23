@@ -10,11 +10,27 @@ export const domain = "Telco";
 export const description =
   "Confianza de la línea telefónica: antigüedad, cambio reciente de SIM y coincidencia del titular.";
 export const latencyRangeMs = [300, 800];
-export const operations = [{ path: operationPath, method: "POST", summary: "Consultar la confianza de una línea" }];
+export const operations = [
+  {
+    path: operationPath,
+    method: "POST",
+    summary: "Consultar la confianza de una línea",
+  },
+];
 /** `manual_review_required` es la tercera rama de la tabla del paquete QA: estable / riesgo / revisión. */
-export const handledScenarios = ["happy_path", "fraud_signal_high", "manual_review_required", "data_not_available"];
+export const handledScenarios = [
+  "happy_path",
+  "fraud_signal_high",
+  "manual_review_required",
+  "data_not_available",
+];
 
-export function respond(scenario, input = {}, _operation = operationPath, ctx = {}) {
+export function respond(
+  scenario,
+  input = {},
+  _operation = operationPath,
+  ctx = {},
+) {
   const identity = identityOf(input, ctx.personaKey);
 
   if (scenario === "fraud_signal_high") {
@@ -45,7 +61,12 @@ export function respond(scenario, input = {}, _operation = operationPath, ctx = 
     };
   }
   if (scenario === "data_not_available") {
-    return { provider: code, status: "DATA_NOT_AVAILABLE", reasonCode: "CARRIER_DID_NOT_ANSWER", phoneNumberActive: null };
+    return {
+      provider: code,
+      status: "DATA_NOT_AVAILABLE",
+      reasonCode: "CARRIER_DID_NOT_ANSWER",
+      phoneNumberActive: null,
+    };
   }
 
   // La antigüedad manda sobre el resto: una línea de dos años no puede salir con `NEW`, y el
