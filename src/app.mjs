@@ -137,6 +137,15 @@ function healthRoutes(store, config) {
   return [
     route("GET", "/mock/live", ({ res }) => sendJson(res, 200, { ok: true, status: "LIVE", epoch: store.epoch, schemaVersion: SCHEMA_VERSION })),
 
+    route("GET", "/mock/version", ({ res }) =>
+      sendJson(res, 200, {
+        service: "atlas-external-providers-mock-server",
+        version: config.appVersion,
+        commit: config.commit,
+        environment: process.env.NODE_ENV ?? "unknown",
+      }),
+    ),
+
     route("GET", "/mock/ready", ({ res }) => {
       const problems = readiness();
       return sendJson(res, problems.length === 0 ? 200 : 503, {

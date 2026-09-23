@@ -102,6 +102,7 @@ jobs:
             echo "  Coolify no responde todavía (intento ${intento}/12); reintentando en 10 s."
             sleep 10
           done
+
           echo "::error::Coolify no respondió en dos minutos desde el runner."
           echo "::error::Comprueba el estado de la máquina y de tailscaled:"
           echo "::error::  ssh root@100.101.207.88 'systemctl status tailscaled; docker ps | grep coolify'"
@@ -336,3 +337,39 @@ jobs:
             fi
             sleep 10
           done
+
+      - name: Confirmar healthcheck interno del mock
+        shell: bash
+        env:
+          COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.PABLO_H310_COOLIFY_WEBHOOK }}
+          COOLIFY_API_TOKEN: ${{ secrets.PABLO_H310_COOLIFY_TOKEN }}
+          COOLIFY_API: http://100.101.207.88:8000/api/v1
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          app_uuid=$(printf '%s' "${COOLIFY_DEPLOY_WEBHOOK}" | sed -n 's/.*[?&]uuid=\([^&]*\).*/\1/p')
+          if [ -z "${app_uuid}" ]; then
+            echo "::error::El webhook no identifica la aplicación."
+            exit 1
+          fi
+          app=$(mktemp)
+          for intento in $(seq 1 "${SMOKE_ATTEMPTS:-12}"); do
+            codigo=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "${app}" --write-out '%{http_code}' \
+              --header "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+              "${COOLIFY_API}/applications/${app_uuid}") || true
+            if [ "${codigo:-000}" != "200" ]; then
+              echo "::error::Coolify no permitió leer la salud del mock (HTTP ${codigo:-000})."
+              exit 1
+            fi
+            estado=$(jq -r '.status // empty' "${app}")
+            commit=$(jq -r '.git_commit_sha // empty' "${app}")
+            if [ "${estado}" = 'running:healthy' ] && [ "${commit}" = "${TARGET_SHA}" ]; then
+              echo "Smoke interno OK: Docker confirmó live, ready, catálogo y SHA ${commit}."
+              exit 0
+            fi
+            echo "  Esperando healthcheck del commit validado (intento ${intento}/${SMOKE_ATTEMPTS:-12}; estado ${estado}; commit ${commit})."
+            if [ "${intento}" -lt "${SMOKE_ATTEMPTS:-12}" ]; then sleep 10; fi
+          done
+          echo "::error::Coolify no confirmó running:healthy para el commit validado."
+          exit 1
