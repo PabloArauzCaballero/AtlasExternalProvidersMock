@@ -42,3 +42,12 @@ jobs:
         with:
           node-version: 22
       - run: npm run smoke
+
+  deploy-dev:
+    name: Desplegar DEV sólo después de los quality gates
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs:
+      - test
+      - smoke
+    uses: ./.github/workflows/deploy-dev.yml
+    secrets: inherit
