@@ -74,3 +74,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/container-smoke.sh
+
+  deploy-dev:
+    name: Desplegar DEV sólo después de los quality gates
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs:
+      - test
+      - smoke
+      - security
+      - container-smoke
+    uses: ./.github/workflows/deploy-dev.yml
+    secrets: inherit
