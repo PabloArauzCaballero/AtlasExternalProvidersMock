@@ -15,26 +15,19 @@
  *   siquiera hay campo donde ponerlas: el journal se LEE, no se empuja. Un emulador que hace
  *   requests salientes a donde le digan es un SSRF con uniforme de herramienta de pruebas.
  */
-import { timingSafeEqual } from "node:crypto";
 import { readJsonBody } from "../http/body.mjs";
 import { sendJson, sendError } from "../http/respond.mjs";
 import { route } from "../http/router.mjs";
+import { bearerMatches } from "../http/access.mjs";
 import { validateFaultPlan } from "../runtime/fault-plan.mjs";
 import { isKnownScenario } from "../capabilities.mjs";
-
-function tokenMatches(expected, received) {
-  if (typeof received !== "string" || received.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
-}
 
 function authorize(req, res, config) {
   if (!config.controlToken) {
     sendError(res, 503, "CONTROL_PLANE_DISABLED", "El plano de control está apagado: falta MOCK_PROVIDERS_CONTROL_TOKEN.");
     return false;
   }
-  const header = req.headers.authorization;
-  const received = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!tokenMatches(config.controlToken, received)) {
+  if (!bearerMatches(config.controlToken, req.headers.authorization)) {
     sendError(res, 401, "CONTROL_UNAUTHORIZED", "El plano de control necesita el token de administración.");
     return false;
   }

@@ -120,7 +120,7 @@ describe("dos corridas en paralelo con escenarios opuestos (H03)", () => {
 
   test("el reset legacy no toca las corridas con namespace propio", async () => {
     await mock.post("/mock/qr/payment/verify", { input: { amount: 5, reference: "R-B2" } }, { ...runB.headers, "x-mock-persona-key": "p-legacy" });
-    const legacyReset = await mock.post("/mock/reset", {});
+    const legacyReset = await mock.post("/mock/reset", {}, { authorization: `Bearer ${CONTROL_TOKEN}` });
     assert.equal(legacyReset.body.scope, "legacy");
     const still = await mock.post("/mock/qr/payment/verify", { input: { amount: 5, reference: "R-B2" } }, { ...runB.headers, "x-mock-persona-key": "p-legacy" });
     assert.equal(still.body.alreadyVerified, true);
