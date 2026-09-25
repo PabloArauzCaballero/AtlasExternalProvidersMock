@@ -24,7 +24,9 @@ por Tailscale, le pide a Coolify que despliegue la aplicación `atlas-provider-m
 **espera su veredicto** — si el build falla, el job termina en rojo. Es el mismo mecanismo de los
 seis repositorios de Atlas.
 
-Ahí NO se publica a internet: no lleva dominio. Quien lo consume es `AtlasBackend`, desde dentro
+Ahí NO se publica a internet: no lleva dominio (en TEST llegó a tener uno asignado por Coolify;
+por eso las rutas con efecto y el CORS ya no confían en ello: ver «Quién puede hablar con el
+emulador»). Quien lo consume es `AtlasBackend`, desde dentro
 de la red compartida de Coolify, por el alias `external-providers-mock`. La URL que va en
 `EXTERNAL_PROVIDERS_MOCK_BASE_URL` allá es, por tanto:
 
@@ -43,6 +45,40 @@ Para mirarlo desde el propio VPS, sin exponerlo:
 ```bash
 docker run --rm --network coolify curlimages/curl -s http://external-providers-mock:4010/mock/health
 ```
+
+## Quién puede hablar con el emulador
+
+El mock de TEST llegó a publicarse a internet con el dominio que Coolify le asigna, y el código
+daba por hecho que no pasaría. Desde el plan de producción (TSK-MOCK-01/02) no depende de eso:
+
+| Qué | Regla | Variable |
+| --- | --- | --- |
+| `POST /mock/scenarios/active`, `POST /mock/reset` | Con token: `authorization: Bearer <token>` o 401. Sin token: sólo desde loopback (127.0.0.1/::1) y sin cabeceras de proxy (`forwarded`, `x-forwarded-for`, `x-real-ip`); si no, 403 `LEGACY_CONTROL_LOCAL_ONLY`. | `MOCK_PROVIDERS_CONTROL_TOKEN` |
+| `/mock/control/*` | Bearer; sin token, 503 (sin cambios). | `MOCK_PROVIDERS_CONTROL_TOKEN` |
+| CORS (navegador) | Sólo orígenes listados reciben `Access-Control-Allow-Origin` y credenciales. Sin variable: `http://localhost:*` y `http://127.0.0.1:*`. Con variable: SÓLO los listados. | `MOCK_PROVIDERS_CORS_ORIGINS` |
+| Marca de simulación | Toda respuesta lleva `x-atlas-simulated: true` (éxito, error, salud, preflight, el JSON roto de `invalid_payload`) y todo cuerpo JSON de objeto lleva `simulated: true`. | — |
+
+Por qué sin token no basta «estar en la red de contenedores»: bajo Coolify el tráfico de internet
+llega al contenedor desde Traefik, que está en esa misma red privada. Por dirección no se distingue
+AtlasBackend de un anónimo detrás del proxy, así que sólo cuenta loopback.
+
+**Quién llama a qué (inventario del 2026-09-25):**
+
+- AtlasBackend: los adaptadores sólo usan las operaciones de proveedor y `/mock/health/<slug>`, por
+  servidor (sin CORS). `scripts/qa/run-personas.ts` usa `/mock/control/*` con el Bearer. Nadie en su
+  código llama a las rutas legacy; sólo aparecen en documentación como `curl` local.
+- QA Lab de AtlasAdminPortal: llama a las **nueve operaciones de proveedor desde el navegador**
+  (`fetch` con `credentials: "include"`, base `NEXT_PUBLIC_QA_MOCK_BASE_URL`, por defecto
+  `http://localhost:4010/mock`). No usa las rutas legacy ni el plano de control, así que **no
+  necesita el token** (y no debe tenerlo: una `NEXT_PUBLIC_*` viaja al navegador). Sí necesita que
+  su origen esté en `MOCK_PROVIDERS_CORS_ORIGINS` del emulador al que apunte:
+  - Emulador local contra el portal local (`localhost:5273`): nada que hacer, entra en el defecto.
+  - Portal desplegado con el `NEXT_PUBLIC_QA_MOCK_BASE_URL` por defecto: el navegador llama al
+    emulador **local** del operador desde el origen del portal desplegado; ese emulador local
+    necesita `MOCK_PROVIDERS_CORS_ORIGINS=http://localhost:5273,<origen del portal>`.
+  - Portal apuntado a un emulador desplegado (DEV/TEST): en la aplicación del emulador en Coolify,
+    `MOCK_PROVIDERS_CORS_ORIGINS=<origen exacto del portal>` (p. ej. `http://161.97.85.216:3020` en
+    TEST). Eso lo configura el dueño; este repo sólo declara la variable en el compose.
 
 ## Pruebas
 
@@ -160,7 +196,11 @@ O fijar un escenario por defecto para el tráfico **sin corrida declarada** (nam
 ```bash
 curl -X POST http://localhost:4010/mock/scenarios/active -d '{"scenario":"provider_down"}'
 curl -X POST http://localhost:4010/mock/reset   # vuelve a happy_path
+# Con MOCK_PROVIDERS_CONTROL_TOKEN configurado, las dos exigen: -H "authorization: Bearer $TOKEN"
 ```
+
+Las dos cambian estado, así que **no son anónimas** (ver «Quién puede hablar con el emulador»):
+con token exigen el Bearer; sin token sólo aceptan peticiones desde la propia máquina.
 
 Ojo: desde 2.0 estas dos rutas **ya no son globales**. Tocan el namespace legacy y nada más. Antes
 movían una variable de proceso, así que dos corridas en paralelo se pisaban el escenario y el
