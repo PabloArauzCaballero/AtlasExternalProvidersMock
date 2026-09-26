@@ -20,7 +20,7 @@
  * las mismas personas da las mismas observaciones.
  */
 
-function fnv1a(input) {
+export function fnv1a(input) {
   let hash = 0x811c9dc5;
   const text = String(input);
   for (let i = 0; i < text.length; i += 1) {

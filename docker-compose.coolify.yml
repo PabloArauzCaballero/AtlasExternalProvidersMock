@@ -63,12 +63,14 @@ services:
     # puerto sólo hacia las redes Docker, que es todo lo que este servicio necesita.
     expose: ['4010']
     stop_grace_period: 20s
-    # Ocho emuladores sin estado sobre `node:http`. 256 MB sobran, y el tope importa en una
-    # máquina donde los builds de los portales ya la hacen paginar.
+    # Ocho emuladores sin estado sobre `node:http` sobraban con 256 MB. `POST /mock/qa/identity-images`
+    # dibuja con sharp/libvips, cuya memoria es NATIVA: medido en macOS, ~220 MB de RSS tras diez
+    # personas (el heap de JS no pasa de 30). Se sube a 512 MB para no morir por OOM a mitad de una
+    # corrida; el tope sigue importando en una máquina donde los builds ya la hacen paginar.
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 512m
 
 # ---------------------------------------------------------------------------------------------
 # La red COMPARTIDA de Coolify. Es por donde AtlasBackend alcanza este servicio.

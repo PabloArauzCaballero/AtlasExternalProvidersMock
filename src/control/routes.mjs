@@ -21,6 +21,10 @@ import { route } from "../http/router.mjs";
 import { bearerMatches } from "../http/access.mjs";
 import { validateFaultPlan } from "../runtime/fault-plan.mjs";
 import { isKnownScenario } from "../capabilities.mjs";
+import {
+  buildIdentityImages,
+  validateIdentityImagesInput,
+} from "../domain/identity-images.mjs";
 
 export function authorize(req, res, config) {
   if (!config.controlToken) {
@@ -309,6 +313,28 @@ export function controlRoutes(store, _config) {
         });
       },
     ),
+
+    /**
+     * Carnet sintético (anverso + reverso) y selfie de UNA persona QA, dibujados con sus datos.
+     * Detrás del token porque sólo lo usa el motor de corridas de AtlasBackend; el tenant se exige
+     * como en el resto del plano de control aunque el dibujo no dependa de él.
+     */
+    route("POST", "/mock/qa/identity-images", async ({ req, res, config }) => {
+      if (!authorize(req, res, config)) return undefined;
+      if (tenantOf(req, res) === null) return undefined;
+      const payload = await body(req, res, config);
+      if (payload === null) return undefined;
+      const validated = validateIdentityImagesInput(payload);
+      if (!validated.ok)
+        return sendError(
+          res,
+          400,
+          "INVALID_INPUT",
+          validated.errors.join(" "),
+          { errors: validated.errors },
+        );
+      return sendJson(res, 200, await buildIdentityImages(validated.value));
+    }),
 
     /**
      * El journal se lee con cursor. Es lo que convierte "la prueba pasó" en "la llamada llegó al

@@ -1,27 +1,39 @@
 # Imagen del emulador de proveedores externos de ATLAS.
 #
-# ## No hay `npm install`, y no es un olvido
+# ## Una sola dependencia de runtime: `sharp`
 #
-# `package.json` no declara **ninguna** dependencia: el servidor es `node:http` y tres módulos
-# propios. Instalar nada sería inventar trabajo, y además esquiva de raíz la clase de fallo que
-# más veces ha tumbado los builds de este VPS: si el demonio de Docker se queda sin DNS, un
-# `npm ci` muere con un error que no menciona la red. Aquí no hay a quién llamar.
+# Hasta `identity-images` el servidor era `node:http` y módulos propios, sin `npm install`. El
+# endpoint `POST /mock/qa/identity-images` dibuja el carnet sintético y la selfie de cada persona QA
+# y para eso necesita `sharp` (libvips precompilado, sin compilar nada: los binarios linux-x64 y
+# linux-arm64 vienen en el lockfile). `npm ci --omit=dev` es la única llamada a la red del build;
+# si el demonio de Docker se queda sin DNS morirá AQUÍ con un error de npm que no menciona la red
+# (ya pasó en el VPS de despliegue).
+#
+# ## `fonts-dejavu-core` NO es decoración
+#
+# sharp compone el SVG del carnet con fontconfig, y en una imagen SIN fuentes el texto se dibuja
+# VACÍO: sale una tarjeta en blanco con el retrato, el OCR del Motor no encuentra una letra y el
+# fallo parece del lector. Es la misma trampa documentada en el Dockerfile del Motor, y la misma
+# fuente (DejaVu Sans y DejaVu Sans Mono) contra la que el Motor calibró su OCR.
 #
 # ## `NODE_ENV` se fija aquí, no en el panel
 #
 # Coolify declara un `ARG NODE_ENV` en TODAS las etapas del Dockerfile y le pasa el valor de
 # Environment Variables. Un `ENV` explícito gana sobre el ARG del mismo nombre en cualquier orden,
-# así que la imagen queda inmune a lo que diga el panel. En este servicio no cambia el
-# comportamiento —no hay build ni dependencias de desarrollo— pero la regla es la misma en los
-# seis repos hermanos y romperla aquí sería una trampa para el siguiente que lo lea.
+# así que la imagen queda inmune a lo que diga el panel.
 FROM node:22-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app
 
-# `package.json` va aunque no traiga dependencias: es lo que declara `"type": "module"`, y sin él
-# Node trata los `.mjs` importados como CommonJS y el arranque muere en el primer `import`.
-COPY --chown=node:node package.json ./
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends fonts-dejavu-core \
+  && rm -rf /var/lib/apt/lists/*
+
+# `package.json` también declara `"type": "module"`: sin él Node trata los `.mjs` como CommonJS y el
+# arranque muere en el primer `import`.
+COPY --chown=node:node package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --chown=node:node src ./src
 COPY --chown=node:node scripts ./scripts
 

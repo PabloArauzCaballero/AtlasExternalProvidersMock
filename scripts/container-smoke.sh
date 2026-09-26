@@ -38,5 +38,28 @@ assert.equal((await valid.json()).status, 'FOUND');
 const denied = await fetch(`${base}/mock/control/runs`);
 assert.equal(denied.status, 401);
 assert.equal((await denied.json()).error, 'CONTROL_UNAUTHORIZED');
-console.log('Contenedor healthy; mock válido y control sin token rechazado.');
+// sharp + libvips + fuentes DENTRO de la imagen: si falta el binario de la plataforma el 200 no
+// llega, y el JPEG tiene que abrir con FFD8.
+const images = await fetch(`${base}/mock/qa/identity-images`, {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    authorization: 'Bearer ci-control-token-12345',
+    'x-mock-tenant-id': 'ci',
+  },
+  body: JSON.stringify({
+    personaKey: 'ci-1',
+    firstName: 'Mariela',
+    lastName: 'Quispe Mamani',
+    documentNumber: '90123456',
+    birthDate: '1990-04-12',
+  }),
+});
+assert.equal(images.status, 200);
+const drawn = (await images.json()).images;
+for (const kind of ['identity_front', 'identity_back', 'selfie']) {
+  const bytes = Buffer.from(drawn[kind].base64, 'base64');
+  assert.equal(bytes.subarray(0, 2).toString('hex'), 'ffd8', kind);
+}
+console.log('Contenedor healthy; mock válido, control sin token rechazado e imágenes QA dibujadas.');
 NODE

@@ -1,7 +1,7 @@
 # Atlas External Providers Mock Server
 
 Servidor **independiente** (sin dependencias de `AtlasBackend` ni de `AtlasAdminPortal`,
-sin build step) que emula los proveedores externos reales de ATLAS. Cada proveedor es un
+sin build step; su única dependencia de runtime es `sharp`, para las imágenes QA) que emula los proveedores externos reales de ATLAS. Cada proveedor es un
 módulo propio bajo `src/providers/`, con su propio health check, para poder migrarlo tal
 cual a un repositorio/servicio externo en la siguiente fase.
 
@@ -303,6 +303,35 @@ El estado vive en memoria: reiniciar el emulador **pierde** los namespaces, y no
 arranque tiene un `epoch`; una llamada que traiga `x-mock-epoch` de un arranque anterior recibe 409
 `NAMESPACE_LOST_ON_RESTART` en vez de un namespace vacío que parecería sano. En el perfil `recovery`
 esa distinción es justamente lo que se está probando.
+
+### Imágenes de identidad de una persona QA
+
+`POST /mock/qa/identity-images` (plano de control: `authorization: Bearer $TOKEN` y
+`x-mock-tenant-id`) dibuja el **carnet boliviano sintético** —anverso y reverso con MRZ TD1— y la
+**selfie** de una persona con SUS datos. Lo usa el motor `qa-orchestration` de AtlasBackend para que
+cada persona suba un documento que el OCR del Motor sabe leer, en vez de una imagen genérica.
+
+```bash
+curl -s -X POST http://localhost:4010/mock/qa/identity-images \
+  -H "authorization: Bearer $TOKEN" -H "x-mock-tenant-id: t-1" -H "content-type: application/json" \
+  -d '{"personaKey":"p-1","firstName":"Mariela","lastName":"Quispe Mamani",
+       "documentNumber":"90123456","birthDate":"1990-04-12","sex":"F","city":"La Paz"}'
+# 200 { "version": "identity-images@mock-1",
+#       "images": { "identity_front": {contentType,bytes,sha256,base64}, "identity_back": {...}, "selfie": {...} } }
+```
+
+- `sex` y `city` son opcionales; lo que no viene (sexo, serie, sección, domicilio, profesión…) se
+  deriva por hash del `documentNumber`. **Determinista**: los mismos datos dan los mismos bytes.
+- Emisión en una ventana fija (2023 … mediados de 2026) y expiración a diez años: vigente sin
+  depender del reloj. Nombres en mayúsculas sin tildes (lo que calibró el Motor y admite la MRZ).
+- JPEG calidad 85; en torno a 175 KB el anverso, 110 KB el reverso y 125 KB la selfie.
+- El diseño y los rostros son un **port** de los fixtures del Motor
+  (`AtlasDecisionEngineBackend/src/modules/workers/identity-verification/fixtures/`), contra los
+  que calibró OCR y comparador facial: el retrato del carnet y la selfie son la misma persona en
+  dos tomas. Se cambian allí primero.
+- Entrada inválida → 400 `INVALID_INPUT` con `errors[]`, uno por campo.
+- Necesita **fuentes DejaVu** en la imagen (`fonts-dejavu-core` en `Dockerfile.dev`): sin fuentes,
+  sharp dibuja el texto vacío y la tarjeta sale en blanco.
 
 ## Agregar un proveedor nuevo
 
