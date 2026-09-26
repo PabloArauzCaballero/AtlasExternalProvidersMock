@@ -11,6 +11,7 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startMock } from "./helpers.mjs";
 import { SUPPORTED_SCENARIOS } from "../src/scenarios.mjs";
+import { providers } from "../src/providers/index.mjs";
 
 describe("enrutado por método y path exacto (H04, H05)", () => {
   let mock;
@@ -334,7 +335,7 @@ describe("salud: vivo no es listo", () => {
     const response = await mock.call("/mock/health");
     assert.equal(response.status, 200);
     assert.equal(response.body.ok, true);
-    assert.equal(response.body.modules.length, 8);
+    assert.equal(response.body.modules.length, providers.length);
   });
 
   test("un módulo inexistente es 404 con causa", async () => {

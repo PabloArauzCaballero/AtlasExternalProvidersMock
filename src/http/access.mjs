@@ -24,20 +24,34 @@ const DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
  * es un origen; `loadConfig` lo convierte en `ConfigError`.
  */
 export function parseCorsOrigins(raw) {
-  if (raw === undefined || raw.trim() === "") return Object.freeze({ mode: "dev" });
+  if (raw === undefined || raw.trim() === "")
+    return Object.freeze({ mode: "dev" });
   const origins = new Set();
-  for (const entry of raw.split(",").map((value) => value.trim()).filter(Boolean)) {
+  for (const entry of raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)) {
     let url;
     try {
       url = new URL(entry);
     } catch {
       throw new Error(`"${entry}" no es un origen (esquema://host[:puerto]).`);
     }
-    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`"${entry}" no es http ni https.`);
+    if (url.protocol !== "http:" && url.protocol !== "https:")
+      throw new Error(`"${entry}" no es http ni https.`);
     // Un origen no lleva ruta, query ni credenciales. `https://a.example/` se acepta (la barra final
     // es lo que se pega al copiar de la barra del navegador); `https://a.example/x` no.
-    if (url.pathname !== "/" || url.search || url.hash || url.username || url.password || entry.replace(/\/$/, "") !== url.origin) {
-      throw new Error(`"${entry}" no es un origen: sin ruta, sin query, sin comodines.`);
+    if (
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash ||
+      url.username ||
+      url.password ||
+      entry.replace(/\/$/, "") !== url.origin
+    ) {
+      throw new Error(
+        `"${entry}" no es un origen: sin ruta, sin query, sin comodines.`,
+      );
     }
     origins.add(url.origin);
   }
@@ -85,13 +99,18 @@ const FORWARDING_HEADERS = ["forwarded", "x-forwarded-for", "x-real-ip"];
  * la misma máquina hablando en nombre de otro.
  */
 export function isLocalRequest(req) {
-  if (FORWARDING_HEADERS.some((name) => req.headers?.[name] !== undefined)) return false;
+  if (FORWARDING_HEADERS.some((name) => req.headers?.[name] !== undefined))
+    return false;
   return LOOPBACK.has(req.socket?.remoteAddress);
 }
 
 export function bearerMatches(expected, header) {
-  const received = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : null;
-  if (typeof received !== "string" || received.length !== expected.length) return false;
+  const received =
+    typeof header === "string" && header.startsWith("Bearer ")
+      ? header.slice(7)
+      : null;
+  if (typeof received !== "string" || received.length !== expected.length)
+    return false;
   return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
 }
 
@@ -106,8 +125,14 @@ export function bearerMatches(expected, header) {
  */
 export function authorizeLegacyControl(req, res, config) {
   if (config.controlToken) {
-    if (bearerMatches(config.controlToken, req.headers.authorization)) return true;
-    sendError(res, 401, "CONTROL_UNAUTHORIZED", "Esta ruta cambia el estado del emulador: necesita el token de administración.");
+    if (bearerMatches(config.controlToken, req.headers.authorization))
+      return true;
+    sendError(
+      res,
+      401,
+      "CONTROL_UNAUTHORIZED",
+      "Esta ruta cambia el estado del emulador: necesita el token de administración.",
+    );
     return false;
   }
   if (isLocalRequest(req)) return true;
