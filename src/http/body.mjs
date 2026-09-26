@@ -11,7 +11,11 @@
  * `{ ok: true, value }` o `{ ok: false, code, status, detail }`, y quien llama decide la respuesta.
  */
 
-const JSON_MEDIA_TYPES = new Set(["application/json", "application/problem+json", "text/json"]);
+const JSON_MEDIA_TYPES = new Set([
+  "application/json",
+  "application/problem+json",
+  "text/json",
+]);
 
 function mediaTypeOf(header) {
   if (typeof header !== "string" || header.trim() === "") return null;
@@ -92,7 +96,11 @@ export function readJsonBody(req, { maxBytes }) {
           detail: "El cuerpo no es JSON válido.",
         });
       }
-      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      if (
+        parsed === null ||
+        typeof parsed !== "object" ||
+        Array.isArray(parsed)
+      ) {
         return finish({
           ok: false,
           status: 400,
@@ -106,8 +114,21 @@ export function readJsonBody(req, { maxBytes }) {
     // `error` y `aborted` NO son "cuerpo vacío": el cliente se fue. Quien llama tiene que saberlo
     // para no contestar a una conexión que ya no existe ni contar la llamada como atendida.
     const onError = (error) =>
-      finish({ ok: false, status: 400, code: "REQUEST_STREAM_ERROR", detail: error?.message ?? "stream error", aborted: true });
-    const onAborted = () => finish({ ok: false, status: 499, code: "CLIENT_ABORTED", detail: "El cliente cortó la conexión.", aborted: true });
+      finish({
+        ok: false,
+        status: 400,
+        code: "REQUEST_STREAM_ERROR",
+        detail: error?.message ?? "stream error",
+        aborted: true,
+      });
+    const onAborted = () =>
+      finish({
+        ok: false,
+        status: 499,
+        code: "CLIENT_ABORTED",
+        detail: "El cliente cortó la conexión.",
+        aborted: true,
+      });
 
     req.on("data", onData);
     req.on("end", onEnd);

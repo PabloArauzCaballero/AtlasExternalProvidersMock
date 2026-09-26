@@ -31,7 +31,10 @@ function freePort() {
 async function waitUntilListening(base, child, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`el servidor terminó al arrancar con código ${child.exitCode}`);
+    if (child.exitCode !== null)
+      throw new Error(
+        `el servidor terminó al arrancar con código ${child.exitCode}`,
+      );
     try {
       const res = await fetch(`${base}/mock/health`);
       if (res.ok) return;
@@ -71,11 +74,17 @@ try {
   await waitUntilListening(base, child);
 
   const health = await getJson(base, "/mock/health");
-  check(health.status === 200 && health.body?.ok === true, "/mock/health responde ok");
+  check(
+    health.status === 200 && health.body?.ok === true,
+    "/mock/health responde ok",
+  );
 
   const catalog = await getJson(base, "/mock/providers");
   const providers = catalog.body?.providers ?? [];
-  check(catalog.status === 200 && providers.length > 0, `el catálogo publica proveedores (${providers.length})`);
+  check(
+    catalog.status === 200 && providers.length > 0,
+    `el catálogo publica proveedores (${providers.length})`,
+  );
   check(
     (health.body?.modules ?? []).length === providers.length,
     "el health global enumera los mismos módulos que el catálogo",
@@ -83,9 +92,17 @@ try {
 
   for (const provider of providers) {
     const res = await getJson(base, provider.healthPath);
-    check(res.status === 200 && res.body?.ok === true, `${provider.code}: ${provider.healthPath}`);
-    const badPaths = (provider.operations ?? []).filter((op) => !op.fullPath?.startsWith("/mock/"));
-    check(badPaths.length === 0, `${provider.code}: todas sus operaciones cuelgan de /mock`);
+    check(
+      res.status === 200 && res.body?.ok === true,
+      `${provider.code}: ${provider.healthPath}`,
+    );
+    const badPaths = (provider.operations ?? []).filter(
+      (op) => !op.fullPath?.startsWith("/mock/"),
+    );
+    check(
+      badPaths.length === 0,
+      `${provider.code}: todas sus operaciones cuelgan de /mock`,
+    );
   }
 
   const unknown = await getJson(base, "/mock/health/no-existe");
@@ -97,12 +114,21 @@ try {
   // Readiness, que no es lo mismo que estar vivo: comprueba que el catálogo entero es coherente
   // antes de declarar que se le puede mandar tráfico.
   const ready = await getJson(base, "/mock/ready");
-  check(ready.status === 200 && ready.body?.status === "READY", "/mock/ready declara el catálogo listo");
-  check((ready.body?.problems ?? ["sin respuesta"]).length === 0, "readiness no reporta problemas");
+  check(
+    ready.status === 200 && ready.body?.status === "READY",
+    "/mock/ready declara el catálogo listo",
+  );
+  check(
+    (ready.body?.problems ?? ["sin respuesta"]).length === 0,
+    "readiness no reporta problemas",
+  );
 
   // El plano de control no puede quedar abierto por omisión: este proceso arrancó sin token.
   const control = await fetch(`${base}/mock/control/runs`);
-  check(control.status === 503, "el plano de control está apagado sin MOCK_PROVIDERS_CONTROL_TOKEN");
+  check(
+    control.status === 503,
+    "el plano de control está apagado sin MOCK_PROVIDERS_CONTROL_TOKEN",
+  );
 } catch (error) {
   failures.push(error.message);
   console.log(`  FAIL ${error.message}\n${output}`);

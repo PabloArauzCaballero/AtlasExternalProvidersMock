@@ -32,7 +32,8 @@ const CELL = 8;
 const QUIET = 2;
 
 function finderModule(row, col) {
-  const inBox = (r0, c0) => row >= r0 && row < r0 + 7 && col >= c0 && col < c0 + 7;
+  const inBox = (r0, c0) =>
+    row >= r0 && row < r0 + 7 && col >= c0 && col < c0 + 7;
   const finderPixel = (r0, c0) => {
     const r = row - r0;
     const c = col - c0;
@@ -41,8 +42,10 @@ function finderModule(row, col) {
     return border || core;
   };
   if (inBox(0, 0)) return { finder: true, on: finderPixel(0, 0) };
-  if (inBox(0, MODULES - 7)) return { finder: true, on: finderPixel(0, MODULES - 7) };
-  if (inBox(MODULES - 7, 0)) return { finder: true, on: finderPixel(MODULES - 7, 0) };
+  if (inBox(0, MODULES - 7))
+    return { finder: true, on: finderPixel(0, MODULES - 7) };
+  if (inBox(MODULES - 7, 0))
+    return { finder: true, on: finderPixel(MODULES - 7, 0) };
   return { finder: false, on: false };
 }
 
@@ -76,10 +79,18 @@ function svgToDataUrl(svg) {
  * operador pueda pedir un QR vencido sin cambiar los datos de la cobranza.
  */
 export function buildTestBankQr(input = {}) {
-  const amount = typeof input.amount === "number" && input.amount > 0 ? input.amount : 100;
-  const currency = typeof input.currency === "string" && input.currency ? input.currency : "BOB";
-  const reference = typeof input.reference === "string" && input.reference ? input.reference : "MOCK-REF";
-  const expired = input.scenario === "expired" || input.scenario === "expired_token";
+  const amount =
+    typeof input.amount === "number" && input.amount > 0 ? input.amount : 100;
+  const currency =
+    typeof input.currency === "string" && input.currency
+      ? input.currency
+      : "BOB";
+  const reference =
+    typeof input.reference === "string" && input.reference
+      ? input.reference
+      : "MOCK-REF";
+  const expired =
+    input.scenario === "expired" || input.scenario === "expired_token";
   const payload = `ATLAS-MOCK-QR|amount=${amount}|currency=${currency}|ref=${reference}`;
   const seed = hash32(payload).toString(16).toUpperCase().padStart(8, "0");
   return {

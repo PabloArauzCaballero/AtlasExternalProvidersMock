@@ -18,15 +18,20 @@
  */
 import { createHash } from "node:crypto";
 
-const SENSITIVE_KEY = /(authorization|cookie|token|secret|password|otp|code|documento|document|ci|nit|phone|telefono|email|correo)/i;
+const SENSITIVE_KEY =
+  /(authorization|cookie|token|secret|password|otp|code|documento|document|ci|nit|phone|telefono|email|correo)/i;
 
 /** Hash canónico: claves ordenadas, así que dos cuerpos equivalentes dan el mismo hash. */
 export function payloadHash(value) {
-  return createHash("sha256").update(canonical(value)).digest("hex").slice(0, 32);
+  return createHash("sha256")
+    .update(canonical(value))
+    .digest("hex")
+    .slice(0, 32);
 }
 
 function canonical(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value ?? null);
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value ?? null);
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   const keys = Object.keys(value).sort();
   return `{${keys.map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
@@ -44,11 +49,14 @@ export function redact(value, depth = 0) {
   if (typeof value === "object") {
     const out = {};
     for (const [key, entry] of Object.entries(value).slice(0, 40)) {
-      out[key] = SENSITIVE_KEY.test(key) ? "[REDACTED]" : redact(entry, depth + 1);
+      out[key] = SENSITIVE_KEY.test(key)
+        ? "[REDACTED]"
+        : redact(entry, depth + 1);
     }
     return out;
   }
-  if (typeof value === "string") return value.length > 64 ? `[string:${value.length}]` : value;
+  if (typeof value === "string")
+    return value.length > 64 ? `[string:${value.length}]` : value;
   return value;
 }
 
@@ -60,7 +68,11 @@ export function createJournal(maxEntries) {
   return {
     append(entry) {
       sequence += 1;
-      entries.push({ sequence, occurredAt: new Date().toISOString(), ...entry });
+      entries.push({
+        sequence,
+        occurredAt: new Date().toISOString(),
+        ...entry,
+      });
       if (entries.length > maxEntries) {
         entries.shift();
         dropped += 1;
@@ -68,7 +80,12 @@ export function createJournal(maxEntries) {
       return sequence;
     },
     /** Cursor durable: `afterSequence` deja reconectar sin duplicar ni perder entradas. */
-    read({ afterSequence = 0, limit = 200, provider = null, personaKey = null } = {}) {
+    read({
+      afterSequence = 0,
+      limit = 200,
+      provider = null,
+      personaKey = null,
+    } = {}) {
       const filtered = entries.filter(
         (entry) =>
           entry.sequence > afterSequence &&
@@ -77,7 +94,10 @@ export function createJournal(maxEntries) {
       );
       return {
         entries: filtered.slice(0, limit),
-        nextCursor: filtered.length > 0 ? filtered[Math.min(filtered.length, limit) - 1].sequence : afterSequence,
+        nextCursor:
+          filtered.length > 0
+            ? filtered[Math.min(filtered.length, limit) - 1].sequence
+            : afterSequence,
         hasMore: filtered.length > limit,
         totalAppended: sequence,
         droppedByRetention: dropped,
@@ -89,7 +109,12 @@ export function createJournal(maxEntries) {
       entries.length = 0;
     },
     stats() {
-      return { held: entries.length, totalAppended: sequence, droppedByRetention: dropped, maxEntries };
+      return {
+        held: entries.length,
+        totalAppended: sequence,
+        droppedByRetention: dropped,
+        maxEntries,
+      };
     },
   };
 }

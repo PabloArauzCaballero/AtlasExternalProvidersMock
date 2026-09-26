@@ -1,7 +1,6 @@
 # Integración continua del emulador de proveedores (auditoría a producción, 2026-09-13).
 #
-# Hasta hoy sólo había despliegue: un cambio que rompiera el arranque o un health se descubría
-# cuando AtlasBackend empezaba a reportar proveedores caídos. Sin dependencias, así que sin install.
+# El servidor sigue sin dependencias de ejecución. Las herramientas de calidad viven en devDependencies.
 #
 # Desde el motor QA (2026-09-21) el humo ya no es lo único: la suite de contrato comprueba las
 # trampas que este emulador tenía y que hacían pasar pruebas que no debían pasar —ruta inexistente
@@ -22,13 +21,17 @@ jobs:
   test:
     name: Contrato, aislamiento y configuración
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --check src/server.mjs
+          cache: npm
+      - run: npm ci
+      - run: npm run syntax:check
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm test
 
   smoke:
@@ -43,11 +46,42 @@ jobs:
           node-version: 22
       - run: npm run smoke
 
+  security:
+    name: Secretos y dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - name: Instalar gitleaks verificado
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+      - run: gitleaks dir . --redact --exit-code 1
+
+  container-smoke:
+    name: Imagen y smoke del contenedor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [test, smoke, security]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/container-smoke.sh
+
   deploy-dev:
     name: Desplegar DEV sólo después de los quality gates
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     needs:
       - test
       - smoke
+      - security
+      - container-smoke
     uses: ./.github/workflows/deploy-dev.yml
     secrets: inherit

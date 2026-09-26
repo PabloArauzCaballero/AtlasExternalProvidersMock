@@ -58,7 +58,12 @@ export function readContext(req, body = {}) {
     declaredAttempt: Number.isInteger(attempt) && attempt >= 1 ? attempt : null,
     epoch: label(header(req, HEADERS.epoch), 64),
     schemaVersion: label(header(req, HEADERS.schemaVersion), 32),
-    idempotencyKey: label(header(req, HEADERS.idempotencyKey), 200) ?? label(typeof body.idempotencyKey === "string" ? body.idempotencyKey : null, 200),
+    idempotencyKey:
+      label(header(req, HEADERS.idempotencyKey), 200) ??
+      label(
+        typeof body.idempotencyKey === "string" ? body.idempotencyKey : null,
+        200,
+      ),
     traceparent: label(header(req, HEADERS.traceparent), 64),
   };
 }
@@ -67,7 +72,9 @@ export function readContext(req, body = {}) {
 export function traceIdOf(context) {
   if (!context.traceparent) return null;
   const parts = context.traceparent.split("-");
-  return parts.length >= 3 && /^[0-9a-f]{32}$/i.test(parts[1]) ? parts[1] : null;
+  return parts.length >= 3 && /^[0-9a-f]{32}$/i.test(parts[1])
+    ? parts[1]
+    : null;
 }
 
 /**
@@ -75,16 +82,22 @@ export function traceIdOf(context) {
  */
 export function authorizeContext(store, context) {
   const named = Boolean(context.tenantId || context.runId);
-  if (!named) return { ok: true, namespace: store.resolve({}).namespace, legacy: true };
+  if (!named)
+    return { ok: true, namespace: store.resolve({}).namespace, legacy: true };
   if (!context.tenantId || !context.runId) {
     return {
       ok: false,
       status: 400,
       code: "INCOMPLETE_RUN_CONTEXT",
-      detail: "Una corrida se nombra con x-mock-tenant-id y x-mock-run-id a la vez.",
+      detail:
+        "Una corrida se nombra con x-mock-tenant-id y x-mock-run-id a la vez.",
     };
   }
-  const resolved = store.resolve({ tenantId: context.tenantId, runId: context.runId, declaredEpoch: context.epoch });
+  const resolved = store.resolve({
+    tenantId: context.tenantId,
+    runId: context.runId,
+    declaredEpoch: context.epoch,
+  });
   if (!resolved.ok) {
     return {
       ok: false,
@@ -101,7 +114,8 @@ export function authorizeContext(store, context) {
       ok: false,
       status: 401,
       code: "INVALID_RUN_TOKEN",
-      detail: "Nombrar una corrida no alcanza: hace falta el token que devolvió su alta.",
+      detail:
+        "Nombrar una corrida no alcanza: hace falta el token que devolvió su alta.",
     };
   }
   return { ok: true, namespace: resolved.namespace, legacy: false };

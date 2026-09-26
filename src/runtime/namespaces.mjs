@@ -24,7 +24,13 @@ import { createJournal, payloadHash } from "./journal.mjs";
 /** Namespace reservado para el tráfico que no declara corrida: el consumidor legacy. */
 export const LEGACY_NAMESPACE = "__legacy__";
 
-export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, defaultScenario, now = () => Date.now() }) {
+export function createNamespaceStore({
+  maxNamespaces,
+  ttlMs,
+  journalMaxEntries,
+  defaultScenario,
+  now = () => Date.now(),
+}) {
   const epoch = randomUUID();
   const namespaces = new Map();
 
@@ -35,11 +41,19 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
   function evictExpired() {
     const cutoff = now();
     for (const [key, namespace] of namespaces) {
-      if (namespace.expiresAt <= cutoff && key !== LEGACY_NAMESPACE) namespaces.delete(key);
+      if (namespace.expiresAt <= cutoff && key !== LEGACY_NAMESPACE)
+        namespaces.delete(key);
     }
   }
 
-  function makeNamespace({ key, tenantId, runId, seed, fixtureVersion, scenarioProfile }) {
+  function makeNamespace({
+    key,
+    tenantId,
+    runId,
+    seed,
+    fixtureVersion,
+    scenarioProfile,
+  }) {
     return {
       key,
       epoch,
@@ -47,7 +61,8 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
        * Se devuelve UNA vez, al dar de alta la corrida, y no se vuelve a publicar en ningún listado.
        * Es lo que impide que nombrar una corrida desde una cabecera alcance para entrar en ella.
        */
-      runToken: key === LEGACY_NAMESPACE ? null : randomBytes(24).toString("base64url"),
+      runToken:
+        key === LEGACY_NAMESPACE ? null : randomBytes(24).toString("base64url"),
       tenantId,
       runId,
       seed: seed ?? null,
@@ -70,7 +85,12 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
     };
   }
 
-  const legacy = makeNamespace({ key: LEGACY_NAMESPACE, tenantId: null, runId: null, scenarioProfile: defaultScenario });
+  const legacy = makeNamespace({
+    key: LEGACY_NAMESPACE,
+    tenantId: null,
+    runId: null,
+    scenarioProfile: defaultScenario,
+  });
   legacy.expiresAt = Number.POSITIVE_INFINITY;
   namespaces.set(LEGACY_NAMESPACE, legacy);
 
@@ -80,11 +100,24 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
     create({ tenantId, runId, seed, fixtureVersion, scenarioProfile }) {
       evictExpired();
       const key = keyOf(tenantId, runId);
-      if (namespaces.has(key)) return { ok: false, code: "NAMESPACE_ALREADY_EXISTS", key };
+      if (namespaces.has(key))
+        return { ok: false, code: "NAMESPACE_ALREADY_EXISTS", key };
       // Sin techo, un motor de carga que crea un namespace por corrida y nunca limpia termina
       // tumbando el emulador. Se rechaza con un código propio en vez de morir por memoria.
-      if (namespaces.size >= maxNamespaces) return { ok: false, code: "NAMESPACE_LIMIT_REACHED", limit: maxNamespaces };
-      const namespace = makeNamespace({ key, tenantId, runId, seed, fixtureVersion, scenarioProfile });
+      if (namespaces.size >= maxNamespaces)
+        return {
+          ok: false,
+          code: "NAMESPACE_LIMIT_REACHED",
+          limit: maxNamespaces,
+        };
+      const namespace = makeNamespace({
+        key,
+        tenantId,
+        runId,
+        seed,
+        fixtureVersion,
+        scenarioProfile,
+      });
       namespaces.set(key, namespace);
       return { ok: true, namespace };
     },
@@ -94,13 +127,25 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
      * consumidor —o un emulador reiniciado— y las dos cosas tienen que verse.
      */
     resolve({ tenantId, runId, declaredEpoch = null }) {
-      if (!tenantId || !runId) return { ok: true, namespace: namespaces.get(LEGACY_NAMESPACE), legacy: true };
+      if (!tenantId || !runId)
+        return {
+          ok: true,
+          namespace: namespaces.get(LEGACY_NAMESPACE),
+          legacy: true,
+        };
       evictExpired();
       const namespace = namespaces.get(keyOf(tenantId, runId));
       if (!namespace) {
-        return { ok: false, code: declaredEpoch && declaredEpoch !== epoch ? "NAMESPACE_LOST_ON_RESTART" : "NAMESPACE_NOT_FOUND" };
+        return {
+          ok: false,
+          code:
+            declaredEpoch && declaredEpoch !== epoch
+              ? "NAMESPACE_LOST_ON_RESTART"
+              : "NAMESPACE_NOT_FOUND",
+        };
       }
-      if (declaredEpoch && declaredEpoch !== namespace.epoch) return { ok: false, code: "NAMESPACE_LOST_ON_RESTART" };
+      if (declaredEpoch && declaredEpoch !== namespace.epoch)
+        return { ok: false, code: "NAMESPACE_LOST_ON_RESTART" };
       namespace.expiresAt = now() + ttlMs;
       return { ok: true, namespace, legacy: false };
     },
@@ -117,7 +162,8 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
     },
 
     delete(namespace) {
-      if (namespace.key === LEGACY_NAMESPACE) return { ok: false, code: "LEGACY_NAMESPACE_IS_PERMANENT" };
+      if (namespace.key === LEGACY_NAMESPACE)
+        return { ok: false, code: "LEGACY_NAMESPACE_IS_PERMANENT" };
       namespaces.delete(namespace.key);
       return { ok: true, key: namespace.key };
     },
@@ -133,7 +179,9 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
         fixtureVersion: namespace.fixtureVersion,
         scenarioProfile: namespace.scenarioProfile,
         createdAt: namespace.createdAt,
-        expiresAt: Number.isFinite(namespace.expiresAt) ? new Date(namespace.expiresAt).toISOString() : null,
+        expiresAt: Number.isFinite(namespace.expiresAt)
+          ? new Date(namespace.expiresAt).toISOString()
+          : null,
         entities: namespace.entities.size,
         requestCount: namespace.requestCount,
         journal: namespace.journal.stats(),
@@ -151,17 +199,31 @@ export function createNamespaceStore({ maxNamespaces, ttlMs, journalMaxEntries, 
  * esta función no tiene `await`, así que nadie observa el estado a medio cambiar. Se versiona para
  * que el consumidor pueda detectar una carrera (`stateVersion` inesperado) en vez de pisarla.
  */
-export function transitionEntity(namespace, { personaKey, provider, entityKey }, mutate) {
+export function transitionEntity(
+  namespace,
+  { personaKey, provider, entityKey },
+  mutate,
+) {
   const key = `${personaKey ?? "-"}|${provider}|${entityKey}`;
-  const current = namespace.entities.get(key) ?? { stateVersion: 0, state: null };
+  const current = namespace.entities.get(key) ?? {
+    stateVersion: 0,
+    state: null,
+  };
   const next = mutate(current.state);
-  const record = { stateVersion: current.stateVersion + 1, state: next, updatedAt: new Date().toISOString() };
+  const record = {
+    stateVersion: current.stateVersion + 1,
+    state: next,
+    updatedAt: new Date().toISOString(),
+  };
   namespace.entities.set(key, record);
   return record;
 }
 
 export function readEntity(namespace, { personaKey, provider, entityKey }) {
-  return namespace.entities.get(`${personaKey ?? "-"}|${provider}|${entityKey}`) ?? null;
+  return (
+    namespace.entities.get(`${personaKey ?? "-"}|${provider}|${entityKey}`) ??
+    null
+  );
 }
 
 /**
@@ -172,17 +234,35 @@ export function readEntity(namespace, { personaKey, provider, entityKey }) {
  * - `mismatch`: misma clave, cuerpo distinto ⇒ 422. Es un error del consumidor, no una operación
  *   nueva, y taparlo es exactamente cómo se duplica una solicitud de crédito en producción.
  */
-export function rememberIdempotent(namespace, { principal, operation, key }, body, produce) {
+export function rememberIdempotent(
+  namespace,
+  { principal, operation, key },
+  body,
+  produce,
+) {
   if (!key) return { kind: "fresh", result: produce() };
   const recordKey = `${principal ?? "-"}|${operation}|${key}`;
   const hash = payloadHash(body ?? {});
   const existing = namespace.idempotency.get(recordKey);
   if (existing) {
-    if (existing.payloadHash !== hash) return { kind: "mismatch", storedHash: existing.payloadHash, receivedHash: hash };
-    return { kind: "replay", result: existing.result, storedAt: existing.storedAt };
+    if (existing.payloadHash !== hash)
+      return {
+        kind: "mismatch",
+        storedHash: existing.payloadHash,
+        receivedHash: hash,
+      };
+    return {
+      kind: "replay",
+      result: existing.result,
+      storedAt: existing.storedAt,
+    };
   }
   const result = produce();
-  namespace.idempotency.set(recordKey, { payloadHash: hash, result, storedAt: new Date().toISOString() });
+  namespace.idempotency.set(recordKey, {
+    payloadHash: hash,
+    result,
+    storedAt: new Date().toISOString(),
+  });
   return { kind: "fresh", result };
 }
 

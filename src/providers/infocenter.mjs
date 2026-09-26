@@ -1,4 +1,9 @@
-import { identityOf, derivedInt, derivedFloat, derivedReference } from "../domain/derive.mjs";
+import {
+  identityOf,
+  derivedInt,
+  derivedFloat,
+  derivedReference,
+} from "../domain/derive.mjs";
 
 export const code = "INFOCENTER";
 export const slug = "infocenter";
@@ -14,14 +19,26 @@ export const description =
  * tercero, y su latencia es la que hace visible el costo de pedirla en cada alta.
  */
 export const latencyRangeMs = [900, 2500];
-export const operations = [{ path: operationPath, method: "POST", summary: "Pedir el reporte crediticio de una persona" }];
+export const operations = [
+  {
+    path: operationPath,
+    method: "POST",
+    summary: "Pedir el reporte crediticio de una persona",
+  },
+];
 /**
  * `unauthorized` no aparece aquí: es genérico y lo resuelve el servidor. `data_not_available` es la
  * rama "el buró no tiene historial de esta persona", distinta de `not_found` ("la persona no existe
  * para el buró"): la primera es un thin file y la segunda un documento desconocido, y una política
  * de crédito las trata diferente.
  */
-export const handledScenarios = ["happy_path", "cost_blocked", "not_found", "data_not_available", "manual_review_required"];
+export const handledScenarios = [
+  "happy_path",
+  "cost_blocked",
+  "not_found",
+  "data_not_available",
+  "manual_review_required",
+];
 
 /**
  * El score y la deuda se derivan del documento, no son `680` para todo el mundo.
@@ -31,9 +48,18 @@ export const handledScenarios = ["happy_path", "cost_blocked", "not_found", "dat
  * habituales y además es COHERENTE con lo que observan SEGIP y digital trust para esa misma
  * persona, porque los tres derivan de la misma identidad.
  */
-export function respond(scenario, input = {}, _operation = operationPath, ctx = {}) {
+export function respond(
+  scenario,
+  input = {},
+  _operation = operationPath,
+  ctx = {},
+) {
   const identity = identityOf(input, ctx.personaKey);
-  const providerReference = derivedReference("INFOCENTER-MOCK", identity, "credit-report");
+  const providerReference = derivedReference(
+    "INFOCENTER-MOCK",
+    identity,
+    "credit-report",
+  );
 
   if (scenario === "cost_blocked") {
     return {
@@ -46,7 +72,12 @@ export function respond(scenario, input = {}, _operation = operationPath, ctx = 
     };
   }
   if (scenario === "not_found") {
-    return { provider: code, status: "NOT_FOUND", reasonCode: "DOCUMENT_UNKNOWN_TO_BUREAU", providerReference };
+    return {
+      provider: code,
+      status: "NOT_FOUND",
+      reasonCode: "DOCUMENT_UNKNOWN_TO_BUREAU",
+      providerReference,
+    };
   }
   if (scenario === "data_not_available") {
     // Thin file: la persona existe y no tiene historial. Ni COMPLETED con un score inventado ni
@@ -83,8 +114,12 @@ export function respond(scenario, input = {}, _operation = operationPath, ctx = 
     // La mora acompaña al score en vez de sortearse aparte: un 800 con 90 días de mora es una
     // persona que no existe, y una fixture incoherente hace fallar al motor de riesgo por el
     // motivo equivocado.
-    activeDebtCount: bureauScore >= 700 ? derivedInt(identity, "infocenter.debts", 0, 2) : derivedInt(identity, "infocenter.debts", 1, 5),
-    maxDaysPastDue12m: bureauScore >= 700 ? 0 : derivedInt(identity, "infocenter.dpd", 1, 60),
+    activeDebtCount:
+      bureauScore >= 700
+        ? derivedInt(identity, "infocenter.debts", 0, 2)
+        : derivedInt(identity, "infocenter.debts", 1, 5),
+    maxDaysPastDue12m:
+      bureauScore >= 700 ? 0 : derivedInt(identity, "infocenter.dpd", 1, 60),
     estimatedCostAmount: derivedFloat(identity, "infocenter.cost", 12, 45),
     currency: "BOB",
     providerReference,
