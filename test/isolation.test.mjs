@@ -194,9 +194,13 @@ describe("dos corridas en paralelo con escenarios opuestos (H03)", () => {
       { input: { amount: 5, reference: "R-B2" } },
       { ...runB.headers, "x-mock-persona-key": "p-legacy" },
     );
-    const legacyReset = await mock.post("/mock/reset", {}, {
-      authorization: `Bearer ${CONTROL_TOKEN}`,
-    });
+    const legacyReset = await mock.post(
+      "/mock/reset",
+      {},
+      {
+        authorization: `Bearer ${CONTROL_TOKEN}`,
+      },
+    );
     assert.equal(legacyReset.body.scope, "legacy");
     const still = await mock.post(
       "/mock/qr/payment/verify",

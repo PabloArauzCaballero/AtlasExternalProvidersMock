@@ -27,7 +27,12 @@ import {
   operationsOf,
 } from "./capabilities.mjs";
 import { readJsonBody } from "./http/body.mjs";
-import { sendJson, sendError, sendRaw, SIMULATED_HEADER } from "./http/respond.mjs";
+import {
+  sendJson,
+  sendError,
+  sendRaw,
+  SIMULATED_HEADER,
+} from "./http/respond.mjs";
 import { applyCors, authorizeLegacyControl } from "./http/access.mjs";
 import { delay } from "./http/delay.mjs";
 import { route, resolve as resolveRoute } from "./http/router.mjs";
