@@ -11,6 +11,7 @@
  * usar un test con valores inventados sin tocar `process.env`, y el entrypoint la usa una sola vez
  * y muere con un mensaje concreto si algo no cuadra.
  */
+import { parseCorsOrigins } from "./http/access.mjs";
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -67,6 +68,19 @@ function controlToken(env) {
   return raw;
 }
 
+/**
+ * Orígenes de navegador admitidos (TSK-MOCK-01). Sin variable, sólo `http://localhost:*` y
+ * `http://127.0.0.1:*`; con variable, sólo los listados. Un valor que no es un origen tumba el
+ * arranque: un `*` o una URL con ruta aceptados en silencio dejarían el CORS como antes.
+ */
+function corsOrigins(env) {
+  try {
+    return parseCorsOrigins(env.MOCK_PROVIDERS_CORS_ORIGINS);
+  } catch (error) {
+    throw new ConfigError(`MOCK_PROVIDERS_CORS_ORIGINS: ${error.message}`);
+  }
+}
+
 export function loadConfig(env = process.env) {
   const config = {
     port: integer(env, "MOCK_PROVIDERS_PORT", 4010, { min: 0, max: 65_535 }),
@@ -99,6 +113,7 @@ export function loadConfig(env = process.env) {
     controlToken: controlToken(env),
     appVersion: env.APP_VERSION || '2.0.0',
     commit: env.APP_COMMIT_SHA || 'unknown',
+    corsOrigins: corsOrigins(env),
     /** Namespaces: techo de memoria. El emulador vive en una sola instancia; no puede crecer sin fin. */
     maxNamespaces: integer(env, "MOCK_PROVIDERS_MAX_NAMESPACES", 200, {
       min: 1,

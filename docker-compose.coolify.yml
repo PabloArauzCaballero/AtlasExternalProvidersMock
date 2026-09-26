@@ -15,8 +15,10 @@
 # ## Lo que este archivo NO trae
 #
 # `env_file`: Coolify añade `env_file: - .env` a cada servicio por su cuenta, y las variables se
-# pegan en Environment Variables de la aplicación. Las tres que entiende el servidor están en
-# `.env.example`; ninguna es obligatoria.
+# pegan en Environment Variables de la aplicación. Las que entiende el servidor están en
+# `.env.example`; ninguna es obligatoria. Las dos de ACCESO se declaran abajo en `environment:` para
+# que Coolify las muestre en la interfaz aunque estén vacías: vacías significan «plano de control
+# apagado, rutas legacy sólo desde el propio contenedor» y «CORS sólo para localhost».
 #
 # Tampoco `cache_from`. En este VPS no hay registro, así que un `cache_from: ['<imagen>:coolify']`
 # falla siempre con `pull access denied` y deja el build SIN caché — cuesta y no da nada.
@@ -33,6 +35,11 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     restart: unless-stopped
+    environment:
+      # Bearer del plano de control y de las rutas legacy con efecto. Mínimo 16 caracteres.
+      MOCK_PROVIDERS_CONTROL_TOKEN: ${MOCK_PROVIDERS_CONTROL_TOKEN:-}
+      # Orígenes de navegador admitidos por CORS (lista por comas). Ver README, «Quién puede...».
+      MOCK_PROVIDERS_CORS_ORIGINS: ${MOCK_PROVIDERS_CORS_ORIGINS:-}
     logging:
       driver: json-file
       options:

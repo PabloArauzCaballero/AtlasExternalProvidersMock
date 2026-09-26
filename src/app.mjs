@@ -27,7 +27,8 @@ import {
   operationsOf,
 } from "./capabilities.mjs";
 import { readJsonBody } from "./http/body.mjs";
-import { sendJson, sendError, sendRaw } from "./http/respond.mjs";
+import { sendJson, sendError, sendRaw, SIMULATED_HEADER } from "./http/respond.mjs";
+import { applyCors, authorizeLegacyControl } from "./http/access.mjs";
 import { delay } from "./http/delay.mjs";
 import { route, resolve as resolveRoute } from "./http/router.mjs";
 import {
@@ -44,7 +45,8 @@ import {
   traceIdOf,
 } from "./runtime/context.mjs";
 import { redact, payloadHash } from "./runtime/journal.mjs";
-import { controlRoutes } from "./control/routes.mjs";
+import { controlRoutes, authorize } from "./control/routes.mjs";
+import { createInbox, inboxRoutes } from "./control/inbox.mjs";
 
 export function createMockServer(config, { logger = console } = {}) {
   const store = createNamespaceStore({
@@ -54,9 +56,12 @@ export function createMockServer(config, { logger = console } = {}) {
     defaultScenario: config.defaultScenario,
   });
 
+  // Buzón QA de notificaciones: el backend entrega aquí en modo `webhook` y el motor QA lee los códigos.
+  const inbox = createInbox();
   const routes = [
     ...healthRoutes(store, config),
     ...controlRoutes(store, config),
+    ...inboxRoutes(inbox, authorize),
     ...providerRoutes(store),
   ];
 
@@ -85,31 +90,22 @@ export function createMockServer(config, { logger = console } = {}) {
   return { server, config, store, routes };
 }
 
-/**
- * CORS abierto a cualquier origen, reflejado (no `*`) porque el navegador exige un origen
- * concreto —no un comodín— cuando la petición va con `credentials: include`. El QA Lab del portal
- * llama a este emulador directo desde el navegador (`fetch` con `credentials: "include"` para
- * reusar el mismo código que pega al backend real) y el emulador vive en otro origen
- * (`localhost:4010` contra `localhost:5273`), así que sin esto el preflight lo bloquea el propio
- * navegador antes de que la petición salga. Reflejar el origen es aceptable acá porque el README
- * del emulador ya declara que nunca se publica a internet: no lleva dominio, sólo lo alcanza quien
- * ya está en la red donde vive.
- */
-function applyCors(req, res) {
-  const origin = req.headers.origin;
-  if (!origin) return;
-  res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-}
-
 function isPreflight(req) {
   return (req.method ?? "GET").toUpperCase() === "OPTIONS";
 }
 
-function handlePreflight(req, res) {
+/**
+ * Preflight. Un origen no admitido recibe un 204 SIN cabeceras CORS (`applyCors` no las puso), y el
+ * navegador corta ahí. Uno admitido recibe métodos y las cabeceras que pidió.
+ */
+function handlePreflight(req, res, corsAllowed) {
+  if (!corsAllowed) {
+    res.writeHead(204, { [SIMULATED_HEADER]: "true" });
+    return res.end();
+  }
   const requestedHeaders = req.headers["access-control-request-headers"];
   res.writeHead(204, {
+    [SIMULATED_HEADER]: "true",
     "Access-Control-Allow-Methods":
       "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": requestedHeaders || "*",
@@ -119,8 +115,11 @@ function handlePreflight(req, res) {
 }
 
 async function handle(req, res, routes, config, logger) {
-  applyCors(req, res);
-  if (isPreflight(req)) return handlePreflight(req, res);
+  // La marca va antes que nada: cualquier salida posterior —incluida una que no pase por
+  // `sendJson`— la hereda.
+  res.setHeader(SIMULATED_HEADER, "true");
+  const corsAllowed = applyCors(req, res, config);
+  if (isPreflight(req)) return handlePreflight(req, res, corsAllowed);
 
   let pathname;
   try {
@@ -289,11 +288,16 @@ function healthRoutes(store, config) {
      * Legacy, y deliberadamente acotado: cambia el escenario del namespace legacy y de NINGÚN otro.
      * Antes movía una variable global y con ella el comportamiento de todas las corridas a la vez
      * (hallazgo H03). Una corrida nueva fija su escenario al darse de alta.
+     *
+     * Con efecto, así que autenticada (TSK-MOCK-01): el namespace legacy es el que usa AtlasBackend,
+     * y un anónimo que alcanzara el emulador podía ponerle `provider_down`. La guarda va ANTES de
+     * leer el cuerpo. Ver `authorizeLegacyControl` para el caso sin token.
      */
     route(
       "POST",
       "/mock/scenarios/active",
       async ({ req, res, config: cfg }) => {
+        if (!authorizeLegacyControl(req, res, cfg)) return undefined;
         const body = await readJsonBody(req, { maxBytes: cfg.maxBodyBytes });
         if (!body.ok)
           return body.aborted
@@ -321,7 +325,8 @@ function healthRoutes(store, config) {
       },
     ),
 
-    route("POST", "/mock/reset", ({ res }) => {
+    route("POST", "/mock/reset", ({ req, res, config: cfg }) => {
+      if (!authorizeLegacyControl(req, res, cfg)) return undefined;
       const legacy = store.resolve({}).namespace;
       store.reset(legacy);
       legacy.scenarioProfile = config.defaultScenario;
