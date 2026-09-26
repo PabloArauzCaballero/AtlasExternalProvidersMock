@@ -76,6 +76,8 @@ export function loadConfig(env = process.env) {
     strictScenarios: flag(env, "MOCK_PROVIDERS_STRICT_SCENARIOS", true),
     defaultScenario: env.MOCK_PROVIDERS_SCENARIO ?? "happy_path",
     controlToken: controlToken(env),
+    appVersion: env.APP_VERSION || '2.0.0',
+    commit: env.APP_COMMIT_SHA || 'unknown',
     /** Namespaces: techo de memoria. El emulador vive en una sola instancia; no puede crecer sin fin. */
     maxNamespaces: integer(env, "MOCK_PROVIDERS_MAX_NAMESPACES", 200, { min: 1, max: 10_000 }),
     namespaceTtlMs: integer(env, "MOCK_PROVIDERS_NAMESPACE_TTL_MS", 3_600_000, { min: 60_000, max: 86_400_000 }),
