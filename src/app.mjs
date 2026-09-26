@@ -52,6 +52,7 @@ import {
 import { redact, payloadHash } from "./runtime/journal.mjs";
 import { controlRoutes, authorize } from "./control/routes.mjs";
 import { createInbox, inboxRoutes } from "./control/inbox.mjs";
+import { fakerRoutes } from "./fakers/routes.mjs";
 
 export function createMockServer(config, { logger = console } = {}) {
   const store = createNamespaceStore({
@@ -67,6 +68,8 @@ export function createMockServer(config, { logger = console } = {}) {
     ...healthRoutes(store, config),
     ...controlRoutes(store, config),
     ...inboxRoutes(inbox, authorize),
+    // Generadores de datos de prueba con semilla. Sin estado: no tocan corridas ni escenarios.
+    ...fakerRoutes(),
     ...providerRoutes(store),
   ];
 
@@ -184,7 +187,7 @@ function moduleHealth(provider) {
 /**
  * Liveness y readiness separados, que es la corrección que pide el paquete QA: "un proceso vivo no
  * implica que un proveedor esté UP". `/mock/live` dice que el proceso atiende. `/mock/ready` dice
- * que además el catálogo está completo y coherente —ocho módulos, cada uno con rutas bajo `/mock` y
+ * que además el catálogo está completo y coherente —todos los módulos, cada uno con rutas bajo `/mock` y
  * escenarios declarados—, que es lo que un orquestador necesita para mandar tráfico.
  *
  * `/mock/health` se conserva con su forma anterior porque AtlasBackend lo consume hoy.
@@ -595,6 +598,28 @@ async function handleProviderCall({
             },
             () => next,
           ),
+        // Cabeceras de la petición, para el proveedor que valida credenciales propias (el SIAT
+        // exige `apikey: TokenApi …`). Sólo lectura: el journal nunca las guarda.
+        headers: { ...req.headers },
+        // Estado con clave ELEGIDA por el proveedor, compartido entre sus operaciones: el CUIS que
+        // da `/codigos/cuis` lo tiene que ver `/compra-venta/recepcionFactura`. Sigue colgando del
+        // namespace de la corrida, así que el aislamiento y el reset por corrida no cambian.
+        get: (key) =>
+          readEntity(namespace, {
+            personaKey: null,
+            provider: provider.slug,
+            entityKey: `key:${key}`,
+          })?.state ?? null,
+        set: (key, next) =>
+          transitionEntity(
+            namespace,
+            {
+              personaKey: null,
+              provider: provider.slug,
+              entityKey: `key:${key}`,
+            },
+            () => next,
+          ).state,
       }),
   );
 

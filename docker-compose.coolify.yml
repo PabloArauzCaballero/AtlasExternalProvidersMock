@@ -40,6 +40,9 @@ services:
       MOCK_PROVIDERS_CONTROL_TOKEN: ${MOCK_PROVIDERS_CONTROL_TOKEN:-}
       # Orígenes de navegador admitidos por CORS (lista por comas). Ver README, «Quién puede...».
       MOCK_PROVIDERS_CORS_ORIGINS: ${MOCK_PROVIDERS_CORS_ORIGINS:-}
+      # Cuerpo máximo. 2 MiB porque el paquete de contingencia del SIAT (hasta 500 facturas en un
+      # tar.gz en base64) ya pasa de los 64 KiB por defecto con 500 facturas de una línea.
+      MOCK_PROVIDERS_MAX_BODY_BYTES: ${MOCK_PROVIDERS_MAX_BODY_BYTES:-2097152}
     logging:
       driver: json-file
       options:
@@ -63,10 +66,12 @@ services:
     # puerto sólo hacia las redes Docker, que es todo lo que este servicio necesita.
     expose: ['4010']
     stop_grace_period: 20s
-    # Ocho emuladores sin estado sobre `node:http` sobraban con 256 MB. `POST /mock/qa/identity-images`
-    # dibuja con sharp/libvips, cuya memoria es NATIVA: medido en macOS, ~220 MB de RSS tras diez
-    # personas (el heap de JS no pasa de 30). Se sube a 512 MB para no morir por OOM a mitad de una
-    # corrida; el tope sigue importando en una máquina donde los builds ya la hacen paginar.
+    # Emuladores sobre `node:http`, con estado sólo por corrida y en memoria; el mayor cuerpo
+    # admitido es un paquete del SIAT de 2 MiB. Con eso sobraban 256 MB, pero
+    # `POST /mock/qa/identity-images` dibuja con sharp/libvips, cuya memoria es NATIVA: medido en
+    # macOS, ~220 MB de RSS tras diez personas (el heap de JS no pasa de 30). Se sube a 512 MB para
+    # no morir por OOM a mitad de una corrida; el tope sigue importando en una máquina donde los
+    # builds de los portales ya la hacen paginar.
     deploy:
       resources:
         limits:

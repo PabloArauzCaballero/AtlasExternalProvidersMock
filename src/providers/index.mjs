@@ -6,6 +6,7 @@ import * as telco from "./telco.mjs";
 import * as facebook from "./facebook.mjs";
 import * as whatsapp from "./whatsapp.mjs";
 import * as digitalTrust from "./digital-trust.mjs";
+import * as siat from "./siat.mjs";
 
 /**
  * Cada módulo es el "emulador" de un proveedor externo real. Agregar un proveedor nuevo
@@ -16,10 +17,13 @@ import * as digitalTrust from "./digital-trust.mjs";
  *   code, slug, mountPath, operationPath, operations[{path, method, summary}],
  *   latencyRangeMs, handledScenarios[], respond(scenario, input, operationPath, ctx)
  *
- * `ctx` trae `{ personaKey, attempt, entity, setEntity }`. Un proveedor sin estado lo ignora; los
- * que evolucionan (un QR que pasa de pendiente a verificado) leen `entity` y escriben con
- * `setEntity`. El estado vive en el namespace de la corrida, nunca en el módulo: dos corridas en
- * paralelo no pueden compartir una variable de archivo.
+ * `ctx` trae `{ personaKey, attempt, entity, setEntity, headers, get, set }`. Un proveedor sin
+ * estado lo ignora; los que evolucionan (un QR que pasa de pendiente a verificado) leen `entity` y
+ * escriben con `setEntity`. `headers` son las cabeceras de la petición (el SIAT valida su
+ * `apikey`), y `get(clave)`/`set(clave, estado)` guardan estado con una clave elegida por el
+ * proveedor y compartida entre sus operaciones (el CUIS que da una operación lo usa otra). El
+ * estado vive en el namespace de la corrida, nunca en el módulo: dos corridas en paralelo no pueden
+ * compartir una variable de archivo.
  */
 export const providers = [
   segip,
@@ -30,6 +34,7 @@ export const providers = [
   facebook,
   whatsapp,
   digitalTrust,
+  siat,
 ];
 
 export function findProviderBySlug(slug) {
