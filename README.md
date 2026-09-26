@@ -103,7 +103,7 @@ escenario desconocido que caía al camino feliz. Los tres hacían pasar pruebas 
 | Ruta | Qué afirma |
 | ---- | ---------- |
 | `GET /mock/live` | El proceso atiende. Nada más. |
-| `GET /mock/ready` | Además el catálogo está completo y coherente: ocho módulos, rutas bajo `/mock`, escenarios declarados. 503 con `problems[]` si no. |
+| `GET /mock/ready` | Además el catálogo está completo y coherente: todos los módulos, rutas bajo `/mock`, escenarios declarados. 503 con `problems[]` si no. |
 | `GET /mock/health` | Compatibilidad: la forma que consume hoy `AtlasBackend`. |
 | `GET /mock/health/<slug>` | Salud de un módulo. Un slug desconocido es 404 `UNKNOWN_MODULE`. |
 
@@ -138,11 +138,62 @@ curl http://localhost:4010/mock/health/digital-trust
 | FACEBOOK_META             | `providers/facebook.mjs`      | `POST /mock/facebook/me`                  |
 | WHATSAPP_GENERIC          | `providers/whatsapp.mjs`      | `POST /mock/whatsapp/verification/confirm`|
 | DIGITAL_TRUST_GENERIC     | `providers/digital-trust.mjs` | `POST /mock/digital-trust/check`          |
+| SIAT_SIN                  | `providers/siat.mjs`          | 32 operaciones bajo `POST /mock/siat/…` (ver «SIAT») |
 
 Estos paths coinciden exactamente con lo que `AtlasBackend` arma vía
 `mockBaseUrlFor()`/`callMockServer()` (`src/modules/external-data/application/external-data-policy.util.ts`
 y `.../infrastructure/adapters/shared/mock-http.util.ts`) — no requieren ningún cambio en
-el backend para funcionar cuando un proveedor está en modo `mock_server`.
+el backend para funcionar cuando un proveedor está en modo `mock_server`. El SIAT no lo consume
+AtlasBackend sino el ERP (`SIAT_MODE=mock_server`).
+
+## SIAT: la facturación en línea del SIN
+
+`providers/siat.mjs` emula los servicios del SIN que usa la facturación computarizada/electrónica en
+línea del sector 1 (compra-venta). El SIN habla SOAP; el emulador habla el JSON del resto del mock,
+**con los mismos nombres de campo del WSDL del piloto**: `input` lleva los campos de la
+`Solicitud…` de la operación y la respuesta los de su `Respuesta…` (`codigoEstado`,
+`codigoRecepcion`, `mensajesList[{codigo, descripcion, advertencia, numeroArchivo}]`,
+`transaccion`…), más `escenario: {solicitado, aplicado}` y `simulated: true`.
+
+| Grupo (servicio del SIN) | Operaciones |
+| ------------------------ | ----------- |
+| `/mock/siat/codigos/*` (FacturacionCodigos) | `cuis`, `cufd`, `verificarNit`, `verificarComunicacion` |
+| `/mock/siat/sincronizacion/*` (FacturacionSincronizacion) | las 18 `sincronizar…` |
+| `/mock/siat/operaciones/*` (FacturacionOperaciones) | `registroEventoSignificativo`, `consultaEventoSignificativo`, `registroPuntoVenta`, `consultaPuntoVenta` |
+| `/mock/siat/compra-venta/*` (ServicioFacturacionCompraVenta) | `recepcionFactura`, `recepcionPaqueteFactura`, `validacionRecepcionPaqueteFactura`, `verificacionEstadoFactura`, `anulacionFactura`, `reversionAnulacionFactura` |
+
+**Credencial:** cabecera `apikey: TokenApi <cualquier token>`; sin ella, 989. Ambiente sólo `2`
+(piloto); `1` es 910.
+
+**Lo que valida de verdad, pida la corrida el escenario que pida:** CUIS (913/929/930) y CUFD
+(914/953) vigentes y de su sucursal/POS; `archivo` en gzip (920) y `hashArchivo` = SHA-256 del gzip,
+sin distinguir mayúsculas (969); forma del XML —raíz de la modalidad, obligatorios, ≤ 500 detalles,
+importes > 0— (939); `nitEmisor` (1001); **CUF recalculado** (1002); CUFD del XML (1003, y 1006 en
+paquetes contra el `cufdEvento`); sucursal del CUFD (1004); `complemento` y `numeroTarjeta` (1011,
+1012); subtotales y total (1018, 1013); `fechaEmision` a ±5 min del reloj de Bolivia en línea (1009) o
+dentro del evento fuera de línea (2001, advertencia); mismo CUF (952); número repetido con otro CUF
+(2000, advertencia); sector ≠ 1 (932); el paquete es un **tar con un XML por factura** en gzip
+(920 si no; 954 si pasa de 500; 985 si no coincide `cantidadFacturas`); anulación con motivo del
+catálogo (925), CUF existente (946), no anulada ya (936) y hasta el día 9 del mes siguiente (934).
+Los textos de cada código son los de la lista oficial del SIN (`siat/data/siat-mensajes.json`).
+
+**Lo que NO valida:** dirección, actividades y productos contra el padrón (1007/1016/1017), la firma
+de la modalidad electrónica y el sobre SOAP. Eso sólo lo dice el piloto. **Los catálogos son de
+prueba** (`catalogoDePrueba: true`, `siat/data/siat-catalogos.json`).
+
+**Estado:** por NIT y **por corrida** (`ctx.get/set`): CUIS de 365 días (un segundo pedido es 980 y
+trae el mismo código), CUFD de 24 h, facturas, eventos y paquetes. Un paquete responde 901 en la
+recepción y en la primera validación, y el resultado (908/904 con `numeroArchivo` por factura,
+contado desde 0) en la segunda. Un reinicio lo pierde todo: 913/914/946 son «renovar y seguir».
+
+**Escenarios de negocio:** `partial_match` → 904 con 1013 · `low_confidence` → 904 sólo advertencia
+2000 · `manual_review_required` → 904 con 1009 · `duplicate_request` → la factura entra y la
+respuesta es 952 (el consumidor tiene que verificar el estado y adoptar el 908) · `expired_token` →
+953 · `not_found` → 946 (verificación/anulación) o 994 (`verificarNit`) · `data_not_available` →
+paquete que se queda en 901 · `fraud_signal_high` → 938 · `cost_blocked` → 975 · `revoked_consent`
+→ 965. En una operación que no representa el escenario pedido la respuesta dice
+`escenario.aplicado: false` en vez de disfrazarlo. Los genéricos (`provider_down`, `timeout`…) los
+resuelve el servidor antes del módulo: el emulador no puede «registrar y luego fallar».
 
 ## Catálogo
 
@@ -160,7 +211,7 @@ mitad devuelve 422 es peor que no ofrecer ninguna.
 ## Latencia
 
 Cada módulo declara su propio `latencyRangeMs`, porque un buró de crédito y un OAuth de Meta no
-tardan lo mismo y un tablero de latencias con ocho valores idénticos no dice nada:
+tardan lo mismo y un tablero de latencias con valores idénticos no dice nada:
 
 | Proveedor | Rango |
 | --------- | ----- |
@@ -169,6 +220,7 @@ tardan lo mismo y un tablero de latencias con ocho valores idénticos no dice na
 | BANKING_GENERIC | 400–1200 ms |
 | DIGITAL_TRUST_GENERIC | 300–900 ms |
 | TELCO_GENERIC | 300–800 ms |
+| SIAT_SIN | 300–1500 ms |
 | QR_GENERIC | 250–700 ms |
 | WHATSAPP_GENERIC | 200–600 ms |
 | FACEBOOK_META | 150–500 ms |
@@ -322,12 +374,21 @@ sólo lo necesita un proveedor con más de una operación, como `banking.mjs`. E
 contexto de la corrida:
 
 ```js
-respond(scenario, input, operation, { personaKey, attempt, entity, setEntity })
+respond(scenario, input, operation, { personaKey, attempt, entity, setEntity, headers, get, set })
 ```
 
 `entity` es el estado previo de esa persona para esa operación (o `null`) y `setEntity` lo
 reemplaza. Vive en el namespace de la corrida, nunca en una variable del módulo: dos corridas en
 paralelo no pueden compartirlo. Un proveedor sin estado ignora el cuarto argumento.
+
+Dos ganchos más, para proveedores con estado entre operaciones o credenciales propias:
+
+- `headers`: las cabeceras de la petición (sólo lectura; el journal no las guarda). El SIAT las
+  usa para exigir `apikey: TokenApi …`.
+- `get(clave)` / `set(clave, estado)`: estado con una clave **elegida por el proveedor** y
+  compartida entre sus operaciones —el CUIS que da `/codigos/cuis` lo lee
+  `/compra-venta/recepcionFactura`—. Sigue colgando del namespace de la corrida, así que el
+  aislamiento y `POST /mock/control/runs/:runId/reset` no cambian.
 
 Las observaciones que el proveedor **inventa** (score, antigüedad, riesgo) se derivan con
 `src/domain/derive.mjs` a partir de la identidad de la persona, en vez de ser constantes. Un

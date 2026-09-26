@@ -10,7 +10,7 @@
  * La corrección tiene dos mitades:
  *
  * - **Escenarios genéricos**: `provider_down`, `timeout`, `unauthorized`… no dependen del
- *   proveedor, son fallos del transporte o del borde. Los resuelve el servidor para los ocho.
+ *   proveedor, son fallos del transporte o del borde. Los resuelve el servidor para todos.
  * - **Escenarios de negocio**: `partial_match`, `cost_blocked`, `revoked_consent`… sólo existen si
  *   ese proveedor los sabe representar. Cada módulo los declara en `handledScenarios`.
  *

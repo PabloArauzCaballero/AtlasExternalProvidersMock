@@ -1,0 +1,142 @@
+{
+  "_aviso": "Catálogos DE PRUEBA del emulador, no los del SIN. Tienen la forma de las respuestas del WSDL (FacturacionSincronizacion) y valores plausibles para ejercitar el flujo; el ERP los sustituye por los reales al conectarse al piloto (F7).",
+  "sincronizarActividades": {
+    "campo": "listaActividades",
+    "items": [
+      { "codigoCaeb": "451010", "descripcion": "VENTA DE VEHÍCULOS AUTOMOTORES (actividad del ejemplo oficial)", "tipoActividad": "P" },
+      { "codigoCaeb": "649900", "descripcion": "OTRAS ACTIVIDADES DE SERVICIOS FINANCIEROS", "tipoActividad": "S" },
+      { "codigoCaeb": "620100", "descripcion": "ACTIVIDADES DE PROGRAMACIÓN INFORMÁTICA", "tipoActividad": "S" }
+    ]
+  },
+  "sincronizarListaActividadesDocumentoSector": {
+    "campo": "listaActividadesDocumentoSector",
+    "items": [
+      { "codigoActividad": "451010", "codigoDocumentoSector": 1, "tipoDocumentoSector": "FACTURA COMPRA VENTA" },
+      { "codigoActividad": "649900", "codigoDocumentoSector": 1, "tipoDocumentoSector": "FACTURA COMPRA VENTA" },
+      { "codigoActividad": "620100", "codigoDocumentoSector": 1, "tipoDocumentoSector": "FACTURA COMPRA VENTA" }
+    ]
+  },
+  "sincronizarListaLeyendasFactura": {
+    "campo": "listaLeyendas",
+    "items": [
+      { "codigoActividad": "451010", "descripcionLeyenda": "Ley N° 453: Tienes derecho a recibir información sobre las características y contenidos de los servicios que utilices." },
+      { "codigoActividad": "649900", "descripcionLeyenda": "Ley N° 453: El proveedor de servicios debe habilitar medios e instrumentos para efectuar consultas y reclamaciones." },
+      { "codigoActividad": "620100", "descripcionLeyenda": "Ley N° 453: Tienes derecho a un trato equitativo sin discriminación en la oferta de servicios." }
+    ]
+  },
+  "sincronizarListaProductosServicios": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoActividad": "451010", "codigoProducto": 49111, "descripcionProducto": "PRODUCTO DEL EJEMPLO OFICIAL", "nandina": [] },
+      { "codigoActividad": "649900", "codigoProducto": 71500, "descripcionProducto": "SERVICIOS DE INTERMEDIACIÓN FINANCIERA (prueba)", "nandina": [] },
+      { "codigoActividad": "649900", "codigoProducto": 71590, "descripcionProducto": "COMISIONES POR SERVICIOS FINANCIEROS (prueba)", "nandina": [] },
+      { "codigoActividad": "620100", "codigoProducto": 83141, "descripcionProducto": "SERVICIOS DE SOFTWARE (prueba)", "nandina": [] }
+    ]
+  },
+  "sincronizarParametricaEventosSignificativos": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "CORTE DEL SERVICIO DE INTERNET" },
+      { "codigoClasificador": 2, "descripcion": "INACCESIBILIDAD AL SERVICIO WEB DE LA ADMINISTRACIÓN TRIBUTARIA" },
+      { "codigoClasificador": 3, "descripcion": "INGRESO A ZONAS SIN INTERNET POR DESPLIEGUE DE PUNTO DE VENTA EN VEHÍCULOS AUTOMOTORES" },
+      { "codigoClasificador": 4, "descripcion": "VENTA EN LUGARES SIN INTERNET" },
+      { "codigoClasificador": 5, "descripcion": "VIRUS INFORMÁTICO O FALLA DE SOFTWARE" },
+      { "codigoClasificador": 6, "descripcion": "CAMBIO DE INFRAESTRUCTURA DEL SISTEMA INFORMÁTICO DE FACTURACIÓN O FALLA DE HARDWARE" },
+      { "codigoClasificador": 7, "descripcion": "CORTE DE SUMINISTRO DE ENERGÍA ELÉCTRICA" }
+    ]
+  },
+  "sincronizarParametricaMotivoAnulacion": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "FACTURA MAL EMITIDA" },
+      { "codigoClasificador": 2, "descripcion": "NOTA DE CRÉDITO-DÉBITO MAL EMITIDA" },
+      { "codigoClasificador": 3, "descripcion": "DATOS DE EMISIÓN INCORRECTOS" },
+      { "codigoClasificador": 4, "descripcion": "FACTURA O NOTA DE CRÉDITO-DÉBITO DEVUELTA" }
+    ]
+  },
+  "sincronizarParametricaPaisOrigen": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 11, "descripcion": "BOLIVIA (ESTADO PLURINACIONAL DE)" },
+      { "codigoClasificador": 9, "descripcion": "ARGENTINA" },
+      { "codigoClasificador": 31, "descripcion": "BRASIL" }
+    ]
+  },
+  "sincronizarParametricaTipoDocumentoIdentidad": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "CI - CÉDULA DE IDENTIDAD" },
+      { "codigoClasificador": 2, "descripcion": "CEX - CÉDULA DE IDENTIDAD DE EXTRANJERO" },
+      { "codigoClasificador": 3, "descripcion": "PAS - PASAPORTE" },
+      { "codigoClasificador": 4, "descripcion": "OD - OTRO DOCUMENTO DE IDENTIDAD" },
+      { "codigoClasificador": 5, "descripcion": "NIT - NÚMERO DE IDENTIFICACIÓN TRIBUTARIA" }
+    ]
+  },
+  "sincronizarParametricaTipoDocumentoSector": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "FACTURA COMPRA VENTA" },
+      { "codigoClasificador": 2, "descripcion": "RECIBO DE ALQUILER DE BIENES INMUEBLES" },
+      { "codigoClasificador": 15, "descripcion": "FACTURA ENTIDADES FINANCIERAS" },
+      { "codigoClasificador": 24, "descripcion": "NOTA DE CRÉDITO-DÉBITO" }
+    ]
+  },
+  "sincronizarParametricaTipoEmision": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "EN LÍNEA" },
+      { "codigoClasificador": 2, "descripcion": "FUERA DE LÍNEA" },
+      { "codigoClasificador": 3, "descripcion": "MASIVA" }
+    ]
+  },
+  "sincronizarParametricaTipoHabitacion": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "SIMPLE" },
+      { "codigoClasificador": 2, "descripcion": "DOBLE" }
+    ]
+  },
+  "sincronizarParametricaTipoMetodoPago": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "EFECTIVO" },
+      { "codigoClasificador": 2, "descripcion": "TARJETA" },
+      { "codigoClasificador": 3, "descripcion": "CHEQUE" },
+      { "codigoClasificador": 7, "descripcion": "TRANSFERENCIA BANCARIA" },
+      { "codigoClasificador": 33, "descripcion": "PAGO ONLINE" }
+    ]
+  },
+  "sincronizarParametricaTipoMoneda": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "BOLIVIANO" },
+      { "codigoClasificador": 2, "descripcion": "DÓLAR" }
+    ]
+  },
+  "sincronizarParametricaTipoPuntoVenta": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "PUNTO VENTA COMISIONISTA" },
+      { "codigoClasificador": 2, "descripcion": "PUNTO VENTA VENTANILLA DE COBRANZA" },
+      { "codigoClasificador": 3, "descripcion": "PUNTO DE VENTA MÓVILES" },
+      { "codigoClasificador": 5, "descripcion": "PUNTO DE VENTA CAJEROS" }
+    ]
+  },
+  "sincronizarParametricaTiposFactura": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "FACTURA CON DERECHO A CRÉDITO FISCAL" },
+      { "codigoClasificador": 2, "descripcion": "FACTURA SIN DERECHO A CRÉDITO FISCAL" },
+      { "codigoClasificador": 3, "descripcion": "DOCUMENTO DE AJUSTE" }
+    ]
+  },
+  "sincronizarParametricaUnidadMedida": {
+    "campo": "listaCodigos",
+    "items": [
+      { "codigoClasificador": 1, "descripcion": "BOBINAS" },
+      { "codigoClasificador": 57, "descripcion": "UNIDAD (BIENES)" },
+      { "codigoClasificador": 58, "descripcion": "UNIDAD (SERVICIOS)" },
+      { "codigoClasificador": 62, "descripcion": "OTRO" }
+    ]
+  }
+}
