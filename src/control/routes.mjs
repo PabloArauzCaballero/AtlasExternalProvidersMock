@@ -22,7 +22,7 @@ import { bearerMatches } from "../http/access.mjs";
 import { validateFaultPlan } from "../runtime/fault-plan.mjs";
 import { isKnownScenario } from "../capabilities.mjs";
 
-function authorize(req, res, config) {
+export function authorize(req, res, config) {
   if (!config.controlToken) {
     sendError(res, 503, "CONTROL_PLANE_DISABLED", "El plano de control está apagado: falta MOCK_PROVIDERS_CONTROL_TOKEN.");
     return false;

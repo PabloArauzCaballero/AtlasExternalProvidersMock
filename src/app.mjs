@@ -23,7 +23,8 @@ import { createNamespaceStore, transitionEntity, readEntity, rememberIdempotent,
 import { resolveScenario } from "./runtime/fault-plan.mjs";
 import { readContext, authorizeContext, traceIdOf } from "./runtime/context.mjs";
 import { redact, payloadHash } from "./runtime/journal.mjs";
-import { controlRoutes } from "./control/routes.mjs";
+import { controlRoutes, authorize } from "./control/routes.mjs";
+import { createInbox, inboxRoutes } from "./control/inbox.mjs";
 
 export function createMockServer(config, { logger = console } = {}) {
   const store = createNamespaceStore({
@@ -33,7 +34,9 @@ export function createMockServer(config, { logger = console } = {}) {
     defaultScenario: config.defaultScenario,
   });
 
-  const routes = [...healthRoutes(store, config), ...controlRoutes(store, config), ...providerRoutes(store, config)];
+  // Buzón QA de notificaciones: el backend entrega aquí en modo `webhook` y el motor QA lee los códigos.
+  const inbox = createInbox();
+  const routes = [...healthRoutes(store, config), ...controlRoutes(store, config), ...inboxRoutes(inbox, authorize), ...providerRoutes(store, config)];
 
   const server = createServer((req, res) => {
     handle(req, res, routes, config, logger).catch((error) => {
