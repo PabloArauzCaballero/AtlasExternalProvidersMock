@@ -33,7 +33,11 @@ export function sendJson(res, statusCode, payload, headers = {}) {
     ...headers,
     [SIMULATED_HEADER]: "true",
   });
-  res.end(JSON.stringify(isPlainObject(payload) ? { ...payload, simulated: true } : payload));
+  res.end(
+    JSON.stringify(
+      isPlainObject(payload) ? { ...payload, simulated: true } : payload,
+    ),
+  );
   return true;
 }
 
@@ -61,7 +65,10 @@ export function sendError(
 /** Respuesta cruda, para el único caso que NO es JSON: el escenario `invalid_payload`. */
 export function sendRaw(res, statusCode, contentType, body) {
   if (res.writableEnded || res.destroyed) return false;
-  res.writeHead(statusCode, { "content-type": contentType, [SIMULATED_HEADER]: "true" });
+  res.writeHead(statusCode, {
+    "content-type": contentType,
+    [SIMULATED_HEADER]: "true",
+  });
   res.end(body);
   return true;
 }
