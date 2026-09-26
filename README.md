@@ -34,6 +34,12 @@ de la red compartida de Coolify, por el alias `external-providers-mock`. La URL 
 http://external-providers-mock:4010/mock
 ```
 
+El `HEALTHCHECK` de la imagen ejecuta un smoke dentro del contenedor: consulta `/mock/live`,
+`/mock/ready`, el catálogo de `/mock/health` y `/mock/version`, y compara el SHA servido con
+`SOURCE_COMMIT` de Coolify. Tras `finished`, el workflow exige que Coolify informe
+`running:healthy` para ese commit. Esta comprobación mantiene el servicio privado y falla si
+el API token no puede leer el estado; no se ha probado aún contra una instalación real de Coolify.
+
 **El sufijo `/mock` NO es opcional y es la trampa de este cableado.** El backend le concatena el
 path del proveedor (`/segip`, `/infocenter`, …) en `mockBaseUrlFor()`. Sin el sufijo la llamada
 sale a `http://external-providers-mock:4010/segip/identity/verify`, que aquí es un **404**

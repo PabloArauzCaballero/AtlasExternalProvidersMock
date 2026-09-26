@@ -54,13 +54,21 @@ export async function startMock(overrides = {}) {
       });
     },
     /** Da de alta una corrida por el plano de control y devuelve sus cabeceras de tráfico. */
-    async createRun({ tenantId = "t-1", runId = "r-1", scenarioProfile, seed = "seed-1" } = {}) {
+    async createRun({
+      tenantId = "t-1",
+      runId = "r-1",
+      scenarioProfile,
+      seed = "seed-1",
+    } = {}) {
       const created = await this.post(
         "/mock/control/runs",
         { tenantId, runId, seed, scenarioProfile },
         { authorization: `Bearer ${CONTROL_TOKEN}` },
       );
-      if (created.status !== 201) throw new Error(`no se pudo crear la corrida: ${created.status} ${created.text}`);
+      if (created.status !== 201)
+        throw new Error(
+          `no se pudo crear la corrida: ${created.status} ${created.text}`,
+        );
       return {
         tenantId,
         runId,
@@ -70,7 +78,10 @@ export async function startMock(overrides = {}) {
           "x-mock-run-id": runId,
           "x-mock-run-token": created.body.runToken,
         },
-        control: { authorization: `Bearer ${CONTROL_TOKEN}`, "x-mock-tenant-id": tenantId },
+        control: {
+          authorization: `Bearer ${CONTROL_TOKEN}`,
+          "x-mock-tenant-id": tenantId,
+        },
       };
     },
   };

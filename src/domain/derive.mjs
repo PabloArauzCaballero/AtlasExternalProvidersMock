@@ -46,7 +46,9 @@ export function identityOf(input = {}, personaKey = null) {
     input.email,
     personaKey,
   ];
-  const found = candidates.find((value) => typeof value === "string" && value.trim() !== "");
+  const found = candidates.find(
+    (value) => typeof value === "string" && value.trim() !== "",
+  );
   // Sin ningún identificador, la observación es la del caso base. Se marca para que el informe
   // pueda distinguir "la persona no tenía identidad" de "la persona dio este score".
   return found ? String(found).trim() : null;
@@ -80,14 +82,19 @@ export function derivedReference(prefix, identity, purpose) {
 /** Monto tal como lo pidió el consumidor. `null` si no lo mandó: no se inventa un cobro. */
 export function requestedAmount(input = {}) {
   const raw = input.amount ?? input.requestedAmount ?? input.paidAmount;
-  return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : null;
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0
+    ? raw
+    : null;
 }
 
 export function requestedCurrency(input = {}) {
-  return typeof input.currency === "string" && input.currency.trim() !== "" ? input.currency.trim().toUpperCase() : "BOB";
+  return typeof input.currency === "string" && input.currency.trim() !== ""
+    ? input.currency.trim().toUpperCase()
+    : "BOB";
 }
 
 export function requestedReference(input = {}) {
-  const raw = input.reference ?? input.paymentReference ?? input.transactionReference;
+  const raw =
+    input.reference ?? input.paymentReference ?? input.transactionReference;
   return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : null;
 }

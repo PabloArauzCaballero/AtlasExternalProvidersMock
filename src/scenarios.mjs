@@ -34,16 +34,38 @@ export const SUPPORTED_SCENARIOS = [
  */
 export function transportFailureFor(scenario) {
   if (scenario === "provider_down") {
-    return { statusCode: 503, payload: { status: "PROVIDER_UNAVAILABLE", reasonCode: "MOCK_PROVIDER_DOWN" } };
+    return {
+      statusCode: 503,
+      payload: {
+        status: "PROVIDER_UNAVAILABLE",
+        reasonCode: "MOCK_PROVIDER_DOWN",
+      },
+    };
   }
   if (scenario === "unauthorized") {
-    return { statusCode: 401, payload: { status: "UNAUTHORIZED", reasonCode: "MOCK_UNAUTHORIZED" } };
+    return {
+      statusCode: 401,
+      payload: { status: "UNAUTHORIZED", reasonCode: "MOCK_UNAUTHORIZED" },
+    };
   }
   if (scenario === "rate_limited") {
-    return { statusCode: 429, payload: { status: "RATE_LIMITED", reasonCode: "MOCK_RATE_LIMITED", retryAfterSeconds: 2 } };
+    return {
+      statusCode: 429,
+      payload: {
+        status: "RATE_LIMITED",
+        reasonCode: "MOCK_RATE_LIMITED",
+        retryAfterSeconds: 2,
+      },
+    };
   }
   if (scenario === "provider_internal_error") {
-    return { statusCode: 500, payload: { status: "PROVIDER_INTERNAL_ERROR", reasonCode: "MOCK_INTERNAL_ERROR" } };
+    return {
+      statusCode: 500,
+      payload: {
+        status: "PROVIDER_INTERNAL_ERROR",
+        reasonCode: "MOCK_INTERNAL_ERROR",
+      },
+    };
   }
   return null;
 }
@@ -64,7 +86,9 @@ export function transportFailureFor(scenario) {
  * exacto en una prueba de frontera está la cabecera.
  */
 export function latencyMsFor(scenario, provider, defaultLatencyMs) {
-  const range = Array.isArray(provider?.latencyRangeMs) ? provider.latencyRangeMs : null;
+  const range = Array.isArray(provider?.latencyRangeMs)
+    ? provider.latencyRangeMs
+    : null;
   // `slow_response` apunta al triple del techo del proveedor: provoca un p95 feo sin caerse y sin
   // cruzar necesariamente el deadline del consumidor, que es lo que separa `slow` de `timeout`.
   if (scenario === "slow_response") return range ? range[1] * 3 : 3_500;
@@ -83,7 +107,8 @@ export function latencyMsFor(scenario, provider, defaultLatencyMs) {
  * concreto, es una prueba, no una demo, y meterle ruido encima la invalida.
  */
 export function backgroundFailureFor(errorRate, scenarioWasExplicit) {
-  if (scenarioWasExplicit || !(errorRate > 0) || Math.random() >= errorRate) return null;
+  if (scenarioWasExplicit || !(errorRate > 0) || Math.random() >= errorRate)
+    return null;
   const roll = Math.random();
   if (roll < 0.5) return transportFailureFor("provider_down");
   if (roll < 0.8) return transportFailureFor("provider_internal_error");

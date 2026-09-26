@@ -27,6 +27,9 @@ name: atlas-provider-mockup-server
 
 services:
   mock:
+    environment:
+      APP_COMMIT_SHA: '${SOURCE_COMMIT:-}'
+      APP_VERSION: '2.0.0'
     image: atlas-provider-mockup-server:coolify
     build:
       context: .
