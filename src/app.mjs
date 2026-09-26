@@ -27,7 +27,12 @@ import {
   operationsOf,
 } from "./capabilities.mjs";
 import { readJsonBody } from "./http/body.mjs";
-import { sendJson, sendError, sendRaw, SIMULATED_HEADER } from "./http/respond.mjs";
+import {
+  sendJson,
+  sendError,
+  sendRaw,
+  SIMULATED_HEADER,
+} from "./http/respond.mjs";
 import { applyCors, authorizeLegacyControl } from "./http/access.mjs";
 import { delay } from "./http/delay.mjs";
 import { route, resolve as resolveRoute } from "./http/router.mjs";
@@ -47,6 +52,7 @@ import {
 import { redact, payloadHash } from "./runtime/journal.mjs";
 import { controlRoutes, authorize } from "./control/routes.mjs";
 import { createInbox, inboxRoutes } from "./control/inbox.mjs";
+import { fakerRoutes } from "./fakers/routes.mjs";
 
 export function createMockServer(config, { logger = console } = {}) {
   const store = createNamespaceStore({
@@ -62,6 +68,8 @@ export function createMockServer(config, { logger = console } = {}) {
     ...healthRoutes(store, config),
     ...controlRoutes(store, config),
     ...inboxRoutes(inbox, authorize),
+    // Generadores de datos de prueba con semilla. Sin estado: no tocan corridas ni escenarios.
+    ...fakerRoutes(),
     ...providerRoutes(store),
   ];
 

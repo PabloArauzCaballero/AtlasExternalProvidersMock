@@ -157,6 +157,34 @@ Lo consume el tablero de Proveedores externos del portal interno para explicar c
 ofrecer sólo los escenarios que ese proveedor entiende: un desplegable de 18 opciones de las que la
 mitad devuelve 422 es peor que no ofrecer ninguna.
 
+## Fakers: datos de prueba con semilla
+
+Los portales NO llevan datos de prueba escritos a mano: los piden aquí. Doce tipos —`persona`,
+`documento`, `telefono`, `correo`, `direccion`, `dispositivo`, `perfilFinanciero`,
+`cuentaBancaria`, `comercio`, `monto`, `fecha` y `caso` (un cliente completo y coherente)—.
+
+```bash
+curl http://localhost:4010/mock/fakers                       # catálogo: campos y parámetros
+curl -X POST http://localhost:4010/mock/fakers/persona \
+  -H 'content-type: application/json' \
+  -d '{"seed":"qa-regresion","count":5,"variant":"valido","params":{"edadMin":25,"departamento":"SC"}}'
+curl 'http://localhost:4010/mock/fakers/monto?seed=a&count=3&minimo=100&maximo=900'  # lo mismo por GET
+```
+
+- **La misma semilla da exactamente el mismo lote**, y pedir 50 da los mismos 5 primeros que pedir
+  5. Sin `Math.random` ni reloj: las edades se calculan al 1 de enero de 2026 (`referenceDate`).
+- **Parámetros declarados como datos**: el catálogo publica etiqueta, ayuda, mínimo, máximo y
+  opciones de cada uno, y el QA Lab pinta el formulario a partir de ahí. Un parámetro que el tipo
+  no tiene, o fuera de rango, es 422 con TODOS los errores en `errors[]`.
+- **Tres variantes**: `valido`, `frontera` (en el borde: edad mínima exacta, monto máximo) e
+  `invalido` (rompe UNA regla y la nombra en `_invalid: { field, reason }`).
+- Los campos se llaman como en los contratos de AtlasBackend (`firstName`, `documentNumber`,
+  `birthDate`), así que un `{{faker.persona.email}}` en una plantilla se pega tal cual.
+- Correos en `qa.atlas.test` (no existe en internet) y celulares en la serie `6999`/`7999`/`7998`.
+
+Sin estado y sin token: no tocan corridas ni escenarios. Los portales los consultan desde su
+servidor por la red de Coolify (`http://external-providers-mock:4010`), no desde el navegador.
+
 ## Latencia
 
 Cada módulo declara su propio `latencyRangeMs`, porque un buró de crédito y un OAuth de Meta no
