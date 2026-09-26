@@ -40,3 +40,25 @@ test("healthcheck falla ante un commit anterior", async () => {
     await mock.close();
   }
 });
+
+test("sin SHA declarado el healthcheck comprueba la salud y no se queda unhealthy", async () => {
+  // El Coolify de TEST no rellena SOURCE_COMMIT: exigirlo dejaba el mock fuera de Traefik.
+  const mock = await startMock({ APP_COMMIT_SHA: "" });
+  try {
+    const result = await probe(mock.base, "");
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    await mock.close();
+  }
+});
+
+test("un SHA declarado con formato inválido sigue fallando", async () => {
+  const mock = await startMock({ APP_COMMIT_SHA: sha });
+  try {
+    const result = await probe(mock.base, "no-es-un-sha");
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /APP_COMMIT_SHA inválido/);
+  } finally {
+    await mock.close();
+  }
+});

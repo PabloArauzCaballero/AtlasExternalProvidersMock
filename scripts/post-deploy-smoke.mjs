@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 /** Corre dentro del contenedor: el mock no publica dominio ni puerto del host. */
-const sha = process.env.APP_COMMIT_SHA;
-if (!/^[a-f0-9]{40}$/i.test(sha ?? ""))
-  throw new Error("APP_COMMIT_SHA ausente o inválido.");
+/*
+ * El SHA se exige SÓLO si el entorno lo declara. Este guion es también el HEALTHCHECK del
+ * contenedor, y el Coolify de TEST no rellena `SOURCE_COMMIT`: exigirlo siempre dejaba el mock
+ * `unhealthy` para siempre, Traefik no lo enrutaba y TEST se quedó sin mock (2026-09-26).
+ * Donde el despliegue pasa el SHA (DEV por Actions), se sigue comprobando que coincida.
+ */
+const sha = (process.env.APP_COMMIT_SHA ?? "").trim();
+if (sha && !/^[a-f0-9]{40}$/i.test(sha))
+  throw new Error("APP_COMMIT_SHA inválido.");
 const base =
   process.env.SMOKE_BASE_URL ??
   `http://127.0.0.1:${process.env.MOCK_PROVIDERS_PORT || 4010}`;
@@ -28,10 +34,12 @@ const version = await get("/mock/version");
 if (
   version.service !== "atlas-external-providers-mock-server" ||
   version.version === "unknown" ||
-  version.commit !== sha
+  (sha && version.commit !== sha)
 ) {
   throw new Error(
     `SHA o versión servida incorrecta: ${JSON.stringify(version)}`,
   );
 }
-console.log(`Smoke interno OK: ${ready.providers} proveedores; commit ${sha}.`);
+console.log(
+  `Smoke interno OK: ${ready.providers} proveedores; commit ${sha || "sin declarar"}.`,
+);
