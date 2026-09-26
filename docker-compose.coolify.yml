@@ -27,15 +27,16 @@ name: atlas-provider-mockup-server
 
 services:
   mock:
-    environment:
-      APP_COMMIT_SHA: '${SOURCE_COMMIT:-}'
-      APP_VERSION: '2.0.0'
     image: atlas-provider-mockup-server:coolify
     build:
       context: .
       dockerfile: Dockerfile.dev
     restart: unless-stopped
+    # UN solo bloque `environment`: con dos, Coolify se queda con un servicio vacío («no service
+    # selected»), retira el contenedor viejo y no levanta el nuevo. Pasó el 2026-09-26 en TEST.
     environment:
+      APP_COMMIT_SHA: '${SOURCE_COMMIT:-}'
+      APP_VERSION: '2.0.0'
       # Bearer del plano de control y de las rutas legacy con efecto. Mínimo 16 caracteres.
       MOCK_PROVIDERS_CONTROL_TOKEN: ${MOCK_PROVIDERS_CONTROL_TOKEN:-}
       # Orígenes de navegador admitidos por CORS (lista por comas). Ver README, «Quién puede...».
