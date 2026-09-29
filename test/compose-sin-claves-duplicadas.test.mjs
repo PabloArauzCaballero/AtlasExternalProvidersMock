@@ -1,6 +1,6 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 /**
  * Un compose con una clave repetida en el mismo nivel (p. ej. dos `environment:` en el servicio)
@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 function clavesDuplicadas(texto) {
   const pila = [];
   const duplicadas = [];
-  for (const linea of texto.split('\n')) {
+  for (const linea of texto.split("\n")) {
     if (/^\s*(#|$)/.test(linea) || /^\s*-/.test(linea)) continue;
     const m = /^(\s*)([A-Za-z0-9_.-]+):(\s|$)/.exec(linea);
     if (!m) continue;
@@ -28,11 +28,14 @@ function clavesDuplicadas(texto) {
   return duplicadas;
 }
 
-for (const archivo of ['docker-compose.coolify.yml', 'docker-compose.dev.yml']) {
+for (const archivo of [
+  "docker-compose.coolify.yml",
+  "docker-compose.dev.yml",
+]) {
   test(`${archivo} no repite claves en un mismo nivel`, (t) => {
     let texto;
     try {
-      texto = readFileSync(new URL(`../${archivo}`, import.meta.url), 'utf8');
+      texto = readFileSync(new URL(`../${archivo}`, import.meta.url), "utf8");
     } catch {
       t.skip(`${archivo} no existe`);
       return;
@@ -41,7 +44,8 @@ for (const archivo of ['docker-compose.coolify.yml', 'docker-compose.dev.yml']) 
   });
 }
 
-test('el detector encuentra un environment repetido', () => {
-  const texto = 'services:\n  mock:\n    environment:\n      A: 1\n    image: x\n    environment:\n      B: 2\n';
-  assert.deepEqual(clavesDuplicadas(texto), ['environment']);
+test("el detector encuentra un environment repetido", () => {
+  const texto =
+    "services:\n  mock:\n    environment:\n      A: 1\n    image: x\n    environment:\n      B: 2\n";
+  assert.deepEqual(clavesDuplicadas(texto), ["environment"]);
 });
