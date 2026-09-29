@@ -35,10 +35,19 @@ http://external-providers-mock:4010/mock
 ```
 
 El `HEALTHCHECK` de la imagen ejecuta un smoke dentro del contenedor: consulta `/mock/live`,
-`/mock/ready`, el catálogo de `/mock/health` y `/mock/version`, y compara el SHA servido con
-`SOURCE_COMMIT` de Coolify. Tras `finished`, el workflow exige que Coolify informe
+`/mock/ready`, el catálogo de `/mock/health` y `/mock/version`, y compara el SHA servido
+**sólo si `APP_COMMIT_SHA` está definido** en el contenedor (`scripts/post-deploy-smoke.mjs`; el compose lo rellena con
+`${SOURCE_COMMIT:-}`). En DEV, donde Actions pasa el SHA, se comprueba que coincida; en TEST, donde Coolify no
+rellena `SOURCE_COMMIT`, la variable llega vacía y el HEALTHCHECK **no compara ningún SHA** (sólo que el servicio
+responde y que la versión servida es válida). Tras `finished`, el workflow exige que Coolify informe
 `running:healthy` para ese commit. Esta comprobación mantiene el servicio privado y falla si
 el API token no puede leer el estado; no se ha probado aún contra una instalación real de Coolify.
+
+`docker-compose.coolify.yml` nombra sólo 3 de las 13 variables `MOCK_PROVIDERS_*` que lee el servidor
+(`CONTROL_TOKEN`, `CORS_ORIGINS` y `MAX_BODY_BYTES`, más `APP_COMMIT_SHA` y `APP_VERSION`). Es a propósito: son las
+de acceso y las que Coolify debe mostrar aunque estén vacías; las otras diez se pegan en Environment Variables de la
+aplicación (Coolify añade el `env_file`) y todas están descritas, con su valor por defecto, en `.env.example`.
+Que el compose no las nombre no significa que no existan ni que no se puedan cambiar.
 
 **El sufijo `/mock` NO es opcional y es la trampa de este cableado.** El backend le concatena el
 path del proveedor (`/segip`, `/infocenter`, …) en `mockBaseUrlFor()`. Sin el sufijo la llamada
@@ -62,6 +71,7 @@ daba por hecho que no pasaría. Desde el plan de producción (TSK-MOCK-01/02) no
 | `POST /mock/scenarios/active`, `POST /mock/reset` | Con token: `authorization: Bearer <token>` o 401. Sin token: sólo desde loopback (127.0.0.1/::1) y sin cabeceras de proxy (`forwarded`, `x-forwarded-for`, `x-real-ip`); si no, 403 `LEGACY_CONTROL_LOCAL_ONLY`. | `MOCK_PROVIDERS_CONTROL_TOKEN` |
 | `/mock/control/*` | Bearer; sin token, 503 (sin cambios). | `MOCK_PROVIDERS_CONTROL_TOKEN` |
 | CORS (navegador) | Sólo orígenes listados reciben `Access-Control-Allow-Origin` y credenciales. Sin variable: `http://localhost:*` y `http://127.0.0.1:*`. Con variable: SÓLO los listados. | `MOCK_PROVIDERS_CORS_ORIGINS` |
+| `POST /mock/inbox/:channel` (`email`, `sms`, `whatsapp`, `push`; otro canal, 404) | **Abierta: no pide token, a propósito.** La usan el adaptador `webhook` de AtlasBackend y el ERP (`/mock/inbox/email`, correos fiscales del SIAT), que no mandan credenciales; no se le pone token porque romperían. Está acotada: cuerpo hasta `MOCK_PROVIDERS_MAX_BODY_BYTES` (64 KiB por defecto, 2 MiB en el compose de Coolify; más, 413), asunto de 300 y texto de 8.000 caracteres, unos 5.000 mensajes en memoria y 60 minutos de vida (`src/control/inbox.mjs`). Quien alcance el puerto puede depositar mensajes falsos; **leerlos** sí exige Bearer: `GET /mock/control/inbox` (503 sin token configurado, 401 con token erróneo). | `MOCK_PROVIDERS_CONTROL_TOKEN` (sólo la lectura) |
 | Marca de simulación | Toda respuesta lleva `x-atlas-simulated: true` (éxito, error, salud, preflight, el JSON roto de `invalid_payload`) y todo cuerpo JSON de objeto lleva `simulated: true`. | — |
 
 Por qué sin token no basta «estar en la red de contenedores»: bajo Coolify el tráfico de internet

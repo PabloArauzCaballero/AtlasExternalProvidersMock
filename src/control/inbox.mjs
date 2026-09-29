@@ -17,8 +17,8 @@ import { sendJson, sendError } from "../http/respond.mjs";
 import { route } from "../http/router.mjs";
 
 const CHANNELS = new Set(["email", "sms", "whatsapp", "push"]);
-const MAX_MESSAGES = 5_000;
-const TTL_MS = 60 * 60_000;
+export const MAX_MESSAGES = 5_000;
+export const TTL_MS = 60 * 60_000;
 
 function normalize(address) {
   return typeof address === "string"
