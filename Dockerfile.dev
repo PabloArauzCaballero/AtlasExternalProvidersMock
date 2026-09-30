@@ -21,6 +21,15 @@
 # Coolify declara un `ARG NODE_ENV` en TODAS las etapas del Dockerfile y le pasa el valor de
 # Environment Variables. Un `ENV` explícito gana sobre el ARG del mismo nombre en cualquier orden,
 # así que la imagen queda inmune a lo que diga el panel.
+# Identidad del artefacto: el commit se sella AQUÍ, dentro de la imagen, no se toma de una variable de
+# runtime (el Coolify de TEST no rellena SOURCE_COMMIT). `COPY .` no falla si el contexto no trae .git;
+# en ese caso el script deja commit null y el mock responde `unknown` en vez de inventar.
+FROM node:22-bookworm-slim AS build-info
+WORKDIR /ctx
+ARG SOURCE_COMMIT=""
+COPY . .
+RUN node scripts/write-build-info.mjs /out/build-info.json
+
 FROM node:22-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
@@ -36,6 +45,7 @@ COPY --chown=node:node package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --chown=node:node src ./src
 COPY --chown=node:node scripts ./scripts
+COPY --from=build-info --chown=node:node /out/build-info.json ./build-info.json
 
 USER node
 

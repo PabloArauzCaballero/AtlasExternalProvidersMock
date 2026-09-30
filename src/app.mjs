@@ -226,6 +226,7 @@ function healthRoutes(store, config) {
         service: "atlas-external-providers-mock-server",
         version: config.appVersion,
         commit: config.commit,
+        builtAt: config.builtAt,
         environment: process.env.NODE_ENV ?? "unknown",
       }),
     ),

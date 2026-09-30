@@ -31,6 +31,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        SOURCE_COMMIT: '${SOURCE_COMMIT:-}'
     restart: unless-stopped
     # UN solo bloque `environment`: con dos, Coolify se queda con un servicio vacío («no service
     # selected»), retira el contenedor viejo y no levanta el nuevo. Pasó el 2026-09-26 en TEST.
