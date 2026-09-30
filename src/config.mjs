@@ -12,6 +12,11 @@
  * y muere con un mensaje concreto si algo no cuadra.
  */
 import { parseCorsOrigins } from "./http/access.mjs";
+import {
+  DEFAULT_BUILD_INFO_URL,
+  loadBuildIdentity,
+  resolveCommit,
+} from "./build-identity.mjs";
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -81,7 +86,11 @@ function corsOrigins(env) {
   }
 }
 
-export function loadConfig(env = process.env) {
+export function loadConfig(
+  env = process.env,
+  buildInfoUrl = DEFAULT_BUILD_INFO_URL,
+) {
+  const build = loadBuildIdentity(buildInfoUrl);
   const config = {
     port: integer(env, "MOCK_PROVIDERS_PORT", 4010, { min: 0, max: 65_535 }),
     defaultLatencyMs: integer(env, "MOCK_PROVIDERS_DEFAULT_LATENCY_MS", 300, {
@@ -112,7 +121,8 @@ export function loadConfig(env = process.env) {
     defaultScenario: env.MOCK_PROVIDERS_SCENARIO ?? "happy_path",
     controlToken: controlToken(env),
     appVersion: env.APP_VERSION || "2.0.0",
-    commit: env.APP_COMMIT_SHA || "unknown",
+    commit: resolveCommit(build, env.APP_COMMIT_SHA),
+    builtAt: build.builtAt,
     corsOrigins: corsOrigins(env),
     /** Namespaces: techo de memoria. El emulador vive en una sola instancia; no puede crecer sin fin. */
     maxNamespaces: integer(env, "MOCK_PROVIDERS_MAX_NAMESPACES", 200, {
