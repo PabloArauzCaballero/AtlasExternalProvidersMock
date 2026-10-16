@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 /**
  * Un compose con una clave repetida en el mismo nivel (p. ej. dos `environment:` en el servicio)
@@ -28,18 +28,24 @@ function clavesDuplicadas(texto) {
   return duplicadas;
 }
 
-for (const archivo of [
-  "docker-compose.coolify.yml",
-  "docker-compose.dev.yml",
-]) {
-  test(`${archivo} no repite claves en un mismo nivel`, (t) => {
-    let texto;
-    try {
-      texto = readFileSync(new URL(`../${archivo}`, import.meta.url), "utf8");
-    } catch {
-      t.skip(`${archivo} no existe`);
-      return;
-    }
+// Los compose se descubren en la raíz en vez de listarse a mano: una lista fija nombraba un
+// `docker-compose.dev.yml` que no existe y la prueba quedaba en SKIP, que en CI es un verde sin
+// comprobar nada. El de Coolify es el que despliega TEST: si desaparece, es rojo, no skip.
+const raiz = new URL("../", import.meta.url);
+const composes = readdirSync(raiz).filter((f) =>
+  /^docker-compose(\.[\w-]+)?\.ya?ml$/.test(f),
+);
+
+test("el compose de Coolify existe", () => {
+  assert.ok(
+    composes.includes("docker-compose.coolify.yml"),
+    composes.join(", "),
+  );
+});
+
+for (const archivo of composes) {
+  test(`${archivo} no repite claves en un mismo nivel`, () => {
+    const texto = readFileSync(new URL(archivo, raiz), "utf8");
     assert.deepEqual(clavesDuplicadas(texto), []);
   });
 }
